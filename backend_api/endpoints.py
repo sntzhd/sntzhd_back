@@ -31,6 +31,30 @@ response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankNam
                      purpose='Purpose')
 
 
+url_streets = 'https://next.json-generator.com/api/json/get/N1kZKVgpK'
+
+months = {
+    1: 'Январь',
+    2: 'Февраль',
+    3: 'Март',
+    4: 'Апрель',
+    5: 'Май',
+    6: 'Июнь',
+    7: 'Июль',
+    8: 'Август',
+    9: 'Сентябрь',
+    10: 'Октябрь',
+    11: 'Ноябрь',
+    12: 'Декабрь'
+}
+
+sntzhd = dict(name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве',
+              bic = '044525411', corresp_acc = '30101810145250000411', kpp = '231201001', payee_inn = '2312088371',
+              personal_acc = '40703810007550006617', purpose='Оплата электроэнергии по договору №10177', id='0883')
+
+aliases = dict(sntzhd=sntzhd)
+
+
 def get_work_key(k):
     wk = response_keys.get(k)
 
@@ -42,20 +66,50 @@ def get_work_key(k):
 class CreateReceiptResponse(BaseModel):
     img_url: str
     receipt: ReceiptDB
+    formating_date: str
+    formating_sum: str
 
 
-@router.post('/create-receipt')
+@router.post('/create-receipt', description='Создание квитанции')
 async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     current_tariff = None
 
-    receipt.name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"'
-    receipt.bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве'
-    receipt.bic = '044525411'
-    receipt.corresp_acc = '30101810145250000411'
-    receipt.kpp = '231201001'
-    receipt.payee_inn = '2312088371'
+    alias = aliases.get(receipt.alias)
 
-    receipt.personal_acc = '40703810007550006617'
+    if alias == None:
+        raise HTTPException(status_code=500,detail='Не верный alias')
+
+    street_id = None
+
+    r_streets = requests.get(url_streets)
+
+
+    for snt in r_streets.json()['sntList']:
+        if snt.get('alias') == receipt.alias:
+            for street in snt.get('streetList'):
+                if street.get('strName') == receipt.street:
+                    street_id = street.get('strID')
+
+
+    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+
+    print(payer_id, 'payer_idpayer_idpayer_id')
+
+    receipt.name = alias.get('name')
+    receipt.bank_name = alias.get('bank_name')
+    receipt.bic = alias.get('bic')
+    receipt.corresp_acc = alias.get('corresp_acc')
+    receipt.kpp = alias.get('kpp')
+    receipt.payee_inn = alias.get('payee_inn')
+    receipt.personal_acc = alias.get('personal_acc')
+
+    #receipt.name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"'
+    #receipt.bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве'
+    #receipt.bic = '044525411'
+    #receipt.corresp_acc = '30101810145250000411'
+    #receipt.kpp = '231201001'
+    #receipt.payee_inn = '2312088371'
+    #receipt.personal_acc = '40703810007550006617'
 
     r = requests.get(remote_service_config.default_data_url)
     print(remote_service_config.default_data_url)
@@ -74,12 +128,14 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     receipts = await receipt_dao.list(0, HISTORY_PAGE_SIZE, {'payer_address': receipt.payer_address})
 
     if receipts.count > 0:
-        if receipt.rashod_t1 <= receipts.items[0].rashod_t1:
+        if receipt.t1_current <= receipts.items[0].t1_current:
             raise HTTPException(status_code=500,
                                 detail='Ошибка # Не верное значение. Значение прошлого периода {} кВт'.format(
                                     receipts.items[0].rashod_t1))
         t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff')) if receipt.counter_type == 1 else float(
             current_tariff.get('t1_tariff'))
+
+        print(t1_sum, 't0_tarifft0_tarifft0_tariff')
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
     else:
@@ -88,7 +144,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
 
-    receipt.result_sum = int((result_sum * 100))
+    # receipt.result_sum = int((result_sum * 100))
+    receipt.result_sum = result_sum
 
     # receipt.payer_address = '{} {}'.format(receipt.street, receipt.payer_address)
     receipt.last_name = '{} {}. {}.'.format(receipt.last_name, receipt.first_name[0], receipt.grand_name[0])
@@ -104,7 +161,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     paym_period = '{}{}'.format(dt.month, dt.year) if dt.day <= 10 else '{}{}'.format((dt.month - 1), dt.year)
 
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}'.format(int((result_sum * 100)), paym_period)
-    payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
+    #payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
@@ -120,13 +177,40 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
                                              bill_qr_index=qr_img.json().get('response').get('unique')))
     receipt = await receipt_dao.get(id_)
 
-    return CreateReceiptResponse(img_url=img_url, receipt=receipt)
+    try:
+        sum_rub, sum_cop = str(receipt.result_sum).split('.')
+    except ValueError:
+        sum_rub = str(receipt.result_sum)
+        sum_cop = '00'
+
+    return CreateReceiptResponse(img_url=img_url, receipt=receipt,
+                                 formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                  months.get(receipt.created_date.month),
+                                                                  receipt.created_date.year),
+                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop))
 
 
 @router.get('/receipts')
-async def receipts(page: int = 0):
+async def receipts(page: int = 0, street: str = None, start: str = None, end: str = None):
     skip = page * HISTORY_PAGE_SIZE
-    receipts = await receipt_dao.list(skip, HISTORY_PAGE_SIZE, {})
+
+    filters = dict()
+
+    if street:
+        filters.update({'street': street})
+
+
+
+    if start and end:
+        date_start_obj = datetime.datetime.strptime(start, '%Y-%m-%d')
+        date_end_obj = datetime.datetime.strptime(end, '%Y-%m-%d')
+
+        if date_end_obj > date_start_obj:
+            filters.update({'created_date': {'$gte': date_start_obj, '$lte': date_end_obj}})
+
+    print(filters, 'filtersfiltersfilters')
+
+    receipts = await receipt_dao.list(skip, HISTORY_PAGE_SIZE, filters)
     return ListResponse(items=receipts.items, count=receipts.count)
 
 
@@ -150,12 +234,13 @@ async def get_pdf(request: Request, order_id: UUID4):
         sum_cop = '00'
 
     t = templates.TemplateResponse("receipt_new.html",
-                                   {"request": request, 'year': r.created_date.year, 'month': r.created_date.month,
+                                   {"request": request, 'year': r.created_date.year,
+                                    'month': months.get(r.created_date.month),
                                     'day': r.created_date.day, 'sum_rub': sum_rub, 'sum_cop': sum_cop,
                                     'Sum': r.result_sum, 'Name': r.name, 'KPP': r.kpp, 'PayeeINN': r.payee_inn,
                                     'PersonalAcc': r.personal_acc, 'BankName': r.bank_name, 'BIC': r.bic,
                                     'CorrespAcc': r.corresp_acc, 'КБК': '1', 'purpose': r.purpose,
-                                    'payerAddress': r.payer_address, 'lastName': r.last_name}
+                                    'payerAddress': r.payer_address, 'lastName': r.last_name, 'img_url': r.img_url}
                                    )
     print(dir(r.result_sum))
     pdf = weasyprint.HTML(string=str(t.body, 'utf-8')).write_pdf()
@@ -172,7 +257,7 @@ async def get_old_value(payer_address: str):
     return ListResponse(items=receipts.items, count=receipts.count)
 
 
-@router.post('/save-pi')
+@router.post('/save-pi', description='Сохранение данных платильщика')
 async def save_pi(personal_info: PersonalInfoEntity) -> str:
     personal_infos = await personal_info_dao.list(0, 1, {'phone': personal_info.phone})
 
@@ -183,7 +268,18 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 @router.get('/get-receipt')
 async def get_receipt(receipt_id: UUID4):
     receipt: ReceiptDB = await receipt_dao.get(receipt_id)
-    return CreateReceiptResponse(img_url=receipt.img_url, receipt=receipt)
+
+    try:
+        sum_rub, sum_cop = str(receipt.result_sum).split('.')
+    except ValueError:
+        sum_rub = str(receipt.result_sum)
+        sum_cop = '00'
+
+    return CreateReceiptResponse(img_url=receipt.img_url, receipt=receipt,
+                                 formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                  months.get(receipt.created_date.month),
+                                                                  receipt.created_date.year),
+                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop))
 
 
 @router.get('/get/{id_}', name='get_file')
@@ -210,3 +306,10 @@ async def upload_image(file: UploadFile = File(...)) -> str:
     id_ = await file_dao.add(file)
 
     return id_
+
+
+@router.get('/change-status')
+async def change_status(receipt_id: UUID4):
+    receipt: ReceiptDB = await receipt_dao.get(receipt_id)
+    receipt.status = 'paid'
+    await receipt_dao.update(receipt)

@@ -34,6 +34,7 @@ class ReceiptEntity(BaseModel):
     service_name: Services
     numsite: str
     counter_image_id: Optional[str]
+    alias: Optional[str]
 
 class PersonalInfoEntity(BaseModel):
     snt_alias: str

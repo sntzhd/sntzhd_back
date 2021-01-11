@@ -37,6 +37,7 @@ class ReceiptDB(BaseDBModel):
     created_date: datetime = Field(default_factory=now)
     bill_qr_index: str
     counter_image_id: Optional[str]
+    t1_current: int
 
 
 class PersonalInfoDB(BaseDBModel):
