@@ -9,6 +9,11 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import StreamingResponse
 import io
 import time
+from decimal import Decimal
+from typing import Optional, List
+from fastapi_users.password import get_password_hash
+import calendar
+import dateutil.relativedelta
 
 from backend_api.utils import instance
 from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO
@@ -17,6 +22,8 @@ from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB
 from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
 from backend_api.db.exceptions import NotFoundError
+from backend_api.services.auth_service.endpoints import user_db, UserDB
+from backend_api.utils import create_id
 
 router = APIRouter()
 
@@ -29,7 +36,6 @@ file_dao = instance(IFileDAO)
 response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankName', bic='BIC', corresp_acc='CorrespAcc',
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
                      purpose='Purpose')
-
 
 url_streets = 'https://next.json-generator.com/api/json/get/N1kZKVgpK'
 
@@ -48,9 +54,9 @@ months = {
     12: 'Декабрь'
 }
 
-sntzhd = dict(name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве',
-              bic = '044525411', corresp_acc = '30101810145250000411', kpp = '231201001', payee_inn = '2312088371',
-              personal_acc = '40703810007550006617', purpose='Оплата электроэнергии по договору №10177', id='0883')
+sntzhd = dict(name='СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name='Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве',
+              bic='044525411', corresp_acc='30101810145250000411', kpp='231201001', payee_inn='2312088371',
+              personal_acc='40703810007550006617', purpose='Оплата электроэнергии по договору №10177', id='0883')
 
 aliases = dict(sntzhd=sntzhd)
 
@@ -77,19 +83,17 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     alias = aliases.get(receipt.alias)
 
     if alias == None:
-        raise HTTPException(status_code=500,detail='Не верный alias')
+        raise HTTPException(status_code=500, detail='Не верный alias')
 
     street_id = None
 
     r_streets = requests.get(url_streets)
-
 
     for snt in r_streets.json()['sntList']:
         if snt.get('alias') == receipt.alias:
             for street in snt.get('streetList'):
                 if street.get('strName') == receipt.street:
                     street_id = street.get('strID')
-
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
 
@@ -103,13 +107,13 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     receipt.payee_inn = alias.get('payee_inn')
     receipt.personal_acc = alias.get('personal_acc')
 
-    #receipt.name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"'
-    #receipt.bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве'
-    #receipt.bic = '044525411'
-    #receipt.corresp_acc = '30101810145250000411'
-    #receipt.kpp = '231201001'
-    #receipt.payee_inn = '2312088371'
-    #receipt.personal_acc = '40703810007550006617'
+    # receipt.name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"'
+    # receipt.bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве'
+    # receipt.bic = '044525411'
+    # receipt.corresp_acc = '30101810145250000411'
+    # receipt.kpp = '231201001'
+    # receipt.payee_inn = '2312088371'
+    # receipt.personal_acc = '40703810007550006617'
 
     r = requests.get(remote_service_config.default_data_url)
     print(remote_service_config.default_data_url)
@@ -148,6 +152,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     receipt.result_sum = result_sum
 
     # receipt.payer_address = '{} {}'.format(receipt.street, receipt.payer_address)
+    last_name_only = receipt.last_name
     receipt.last_name = '{} {}. {}.'.format(receipt.last_name, receipt.first_name[0], receipt.grand_name[0])
 
     receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
@@ -161,7 +166,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     paym_period = '{}{}'.format(dt.month, dt.year) if dt.day <= 10 else '{}{}'.format((dt.month - 1), dt.year)
 
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}'.format(int((result_sum * 100)), paym_period)
-    #payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
+    # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
@@ -173,8 +178,12 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     img_url = qr_img.json().get('response').get('url')
 
+    t1_expense = receipt.t1_current * receipt.t1_paid
+    t1_sum = float(current_tariff.get('t0_tariff'))
+
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
-                                             bill_qr_index=qr_img.json().get('response').get('unique')))
+                                             bill_qr_index=qr_img.json().get('response').get('unique'),
+                                             last_name_only=last_name_only))
     receipt = await receipt_dao.get(id_)
 
     try:
@@ -183,14 +192,14 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         sum_rub = str(receipt.result_sum)
         sum_cop = '00'
 
-    return CreateReceiptResponse(img_url=img_url, receipt=receipt,
+    return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=t1_expense, t1_sum=t1_sum,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
                                  formating_sum='{} руб {} коп'.format(sum_rub, sum_cop))
 
 
-@router.get('/receipts')
+@router.get('/receipts', description='Квитанции')
 async def receipts(page: int = 0, street: str = None, start: str = None, end: str = None):
     skip = page * HISTORY_PAGE_SIZE
 
@@ -198,8 +207,6 @@ async def receipts(page: int = 0, street: str = None, start: str = None, end: st
 
     if street:
         filters.update({'street': street})
-
-
 
     if start and end:
         date_start_obj = datetime.datetime.strptime(start, '%Y-%m-%d')
@@ -214,14 +221,14 @@ async def receipts(page: int = 0, street: str = None, start: str = None, end: st
     return ListResponse(items=receipts.items, count=receipts.count)
 
 
-@router.delete('/delete-receipt')
+@router.delete('/delete-receipt', description='Удаление квитанции')
 async def delete_receipt(record_id: UUID4):
     # r = await receipt_dao.get(record_id)
     await receipt_dao.delete(record_id)
     # print(r)
 
 
-@router.get('/get-pdf')
+@router.get('/get-pdf', description='Получить квитанцию в PDF формате')
 async def get_pdf(request: Request, order_id: UUID4):
     templates = Jinja2Templates(directory="templates")
 
@@ -251,7 +258,7 @@ async def get_pdf(request: Request, order_id: UUID4):
     return FileResponse('{}/order.pdf'.format(BASE_DIR))
 
 
-@router.get('/get-old-value')
+@router.get('/get-old-value', description='Предыдущие показания')
 async def get_old_value(payer_address: str):
     receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
     return ListResponse(items=receipts.items, count=receipts.count)
@@ -261,11 +268,43 @@ async def get_old_value(payer_address: str):
 async def save_pi(personal_info: PersonalInfoEntity) -> str:
     personal_infos = await personal_info_dao.list(0, 1, {'phone': personal_info.phone})
 
+    alias = aliases.get(personal_info.snt_alias)
+
+    if alias == None:
+        raise HTTPException(status_code=500, detail='Не верный alias')
+
+    street_id = None
+
+    r_streets = requests.get(url_streets)
+
+    for snt in r_streets.json()['sntList']:
+        if snt.get('alias') == personal_info.snt_alias:
+            for street in snt.get('streetList'):
+                if street.get('strName') == personal_info.street_name:
+                    street_id = street.get('strID')
+
+    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, personal_info.numsite)
+    personal_info.payer_id = payer_id
+
     if personal_infos.count == 0:
+        await personal_info_dao.create(PersonalInfoDB(**personal_info.dict()))
+        user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
+                                                     email='{}@online.pay'.format(personal_info.phone),name='',
+                                                 lastname='', grandname='', city='', street='', home='', phone=personal_info.phone))
+
+
+
+    else:
+        user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
+                                                 email='{}@online.pay'.format(personal_info.phone), name='',
+                                                 lastname='', grandname='', city='', street='', home='',
+                                                 phone=personal_info.phone))
+        personal_info_db = personal_infos.items[0]
+        await personal_info_dao.delete(personal_info_db.id)
         await personal_info_dao.create(PersonalInfoDB(**personal_info.dict()))
 
 
-@router.get('/get-receipt')
+@router.get('/get-receipt', description='Данные квитанции по ID')
 async def get_receipt(receipt_id: UUID4):
     receipt: ReceiptDB = await receipt_dao.get(receipt_id)
 
@@ -301,15 +340,122 @@ async def file(
 
 @router.post('/upload-image')
 async def upload_image(file: UploadFile = File(...)) -> str:
-    file_dao = instance(IFileDAO)
+    # print(dir(file))
 
-    id_ = await file_dao.add(file)
+    # print(file.file)
 
-    return id_
+    with open('/home/tram/base_register_back/elocal.png', "rb") as image_file:
+        import base64
+        from io import BytesIO
+        encoded_string = base64.b64encode(image_file.read())
+        # print(encoded_string)
+
+    data = {'function': 'image2bucket', 'image': encoded_string, }
+    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+    r = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro', data, headers=headers)
+
+    print(r.text)
+    # file_dao = instance(IFileDAO)
+    # id_ = await file_dao.add(file)
+    # return id_
 
 
-@router.get('/change-status')
+@router.get('/change-status', description='Изменение статуса квитанции')
 async def change_status(receipt_id: UUID4):
     receipt: ReceiptDB = await receipt_dao.get(receipt_id)
     receipt.status = 'paid'
     await receipt_dao.update(receipt)
+
+
+class PayerInfo(BaseModel):
+    snt: str
+    streetName: str
+    numsite: str
+    lastname: str
+    firstname: str
+    grandname: str
+    counterType: str
+    t1Paid: Decimal
+    t1Current: Decimal
+    t2Paid: Optional[Decimal]
+    t2Current: Optional[Decimal]
+    bill_qr_index: str
+    status: str
+    service_name: str
+
+
+@router.get('/find_payer_by_id', description='Поиск по платежному id')
+async def change_status(payer_id: str) -> PayerInfo:
+    receipts = await receipt_dao.list(0, 1, dict(payer_id=payer_id))
+
+    if receipts.count > 0:
+        receipt: ReceiptDB = receipts.items[0]
+        return PayerInfo(snt='snt', streetName=receipt.street, numsite=receipt.numsite, lastname=receipt.last_name_only,
+                         firstname=receipt.first_name, grandname=receipt.grand_name, counterType=receipt.counter_type,
+                         t1Paid=receipt.t1_paid, t1Current=receipt.t1_current, t2Paid=receipt.t2_paid,
+                         t2Current=receipt.t2_current, bill_qr_index=receipt.bill_qr_index, status=receipt.status,
+                         service_name=receipt.service_name)
+
+
+@router.get('/change_password', description='change_password')
+async def change_password():
+    password = '11111111'
+
+    user_in_db = await user_db.get_by_email('user@example.com')
+
+    user_in_db.hashed_password = get_password_hash(password)
+
+    await user_db.update(user_in_db)
+
+
+class FilterData(BaseModel):
+    title: str
+    start: str
+    end: str
+
+@router.get('/get-months')
+async def get_months() -> List[FilterData]:
+
+    resp_months = []
+
+    dt = datetime.datetime.now()
+
+
+    dt_month_last_day = calendar.monthrange(dt.year, dt.month)[1]
+    current_df = FilterData(title=months.get(dt.month), start='{}-{}-{}'.format(dt.year, dt.month, 1), end='{}-{}-{}'.format(dt.year, dt.month, dt_month_last_day))
+
+    next_month = dt + dateutil.relativedelta.relativedelta(months=1)
+    prev_month = dt - dateutil.relativedelta.relativedelta(months=1)
+
+    next_df = FilterData(title=months.get(next_month.month), start='{}-{}-{}'.format(next_month.year, next_month.month, 1),
+                             end='{}-{}-{}'.format(next_month.year, next_month.month, calendar.monthrange(next_month.year, next_month.month)[1]))
+
+    prev_df = FilterData(title=months.get(prev_month.month), start='{}-{}-{}'.format(prev_month.year, prev_month.month, 1),
+                             end='{}-{}-{}'.format(prev_month.year, prev_month.month, calendar.monthrange(prev_month.year, prev_month.month)[1]))
+
+
+    resp_months.append(prev_df)
+    resp_months.append(current_df)
+    resp_months.append(next_df)
+
+    return resp_months
+
+
+class SendValidationSmsRq(BaseModel):
+    phone: str
+
+@router.post('/sendValidationSms')
+async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
+    user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
+
+    if user_in_db:
+        from secrets import choice
+        import string
+
+        password = ''.join([choice(string.digits) for _ in range(6)])
+        user_in_db.hashed_password = get_password_hash(password)
+        await user_db.update(user_in_db)
+        print(password)
+        return True
+    else:
+        raise HTTPException(status_code=500, detail='Нет в базе')

@@ -21,3 +21,6 @@ def create_id():
 
 def now():
     return datetime.utcnow()
+
+def send_sms(phone: str, code: str):
+    pass

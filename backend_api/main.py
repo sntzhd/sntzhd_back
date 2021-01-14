@@ -46,6 +46,7 @@ def configure_routers():
         prefix="/users",
         tags=["users"],
     )
+
     from backend_api.endpoints import router
 
     app.include_router(router, prefix='/receipts', tags=["receipts"])
