@@ -10,6 +10,7 @@ class MongoConfig(BaseSettings):
 
 class SecretConfig(BaseSettings):
     SECRET_KEY: str
+    SMS_SERVIE_ID: str
 
     class Config:
         env_file = '.env'

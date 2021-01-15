@@ -24,6 +24,7 @@ from backend_api.db.motor.file import IFileDAO
 from backend_api.db.exceptions import NotFoundError
 from backend_api.services.auth_service.endpoints import user_db, UserDB
 from backend_api.utils import create_id
+from backend_api.smssend import send_sms
 
 router = APIRouter()
 
@@ -456,6 +457,9 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
         print(password)
+
+        send_sms(rq.phone, password)
+
         return True
     else:
         raise HTTPException(status_code=500, detail='Нет в базе')
