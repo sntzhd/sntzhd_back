@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException, Request
+from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel
 import requests
 import datetime
@@ -14,17 +14,21 @@ from typing import Optional, List
 from fastapi_users.password import get_password_hash
 import calendar
 import dateutil.relativedelta
+from secrets import choice
+import string
 
 from backend_api.utils import instance
-from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO
+from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity
 from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB
+from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
 from backend_api.db.exceptions import NotFoundError
 from backend_api.services.auth_service.endpoints import user_db, UserDB
 from backend_api.utils import create_id
 from backend_api.smssend import send_sms
+from backend_api.services.auth_service.endpoints import fastapi_users
 
 router = APIRouter()
 
@@ -33,6 +37,8 @@ HISTORY_PAGE_SIZE = 20
 receipt_dao: IReceiptDAO = instance(IReceiptDAO)
 personal_info_dao: IPersonalInfoDAO = instance(IPersonalInfoDAO)
 file_dao = instance(IFileDAO)
+bonus_acc_dao = instance(IBonusAccDAO)
+bonus_history_dao = instance(IBonusHistoryDAO)
 
 response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankName', bic='BIC', corresp_acc='CorrespAcc',
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
@@ -201,7 +207,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
 
 @router.get('/receipts', description='Квитанции')
-async def receipts(page: int = 0, street: str = None, start: str = None, end: str = None):
+async def receipts(page: int = 0, street: str = None, start: str = None, end: str = None,
+                   user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
 
     filters = dict()
@@ -288,21 +295,27 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
     personal_info.payer_id = payer_id
 
     if personal_infos.count == 0:
-        await personal_info_dao.create(PersonalInfoDB(**personal_info.dict()))
-        user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
-                                                     email='{}@online.pay'.format(personal_info.phone),name='',
-                                                 lastname='', grandname='', city='', street='', home='', phone=personal_info.phone))
-
-
-
-    else:
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(personal_info.phone), name='',
                                                  lastname='', grandname='', city='', street='', home='',
-                                                 phone=personal_info.phone))
-        personal_info_db = personal_infos.items[0]
-        await personal_info_dao.delete(personal_info_db.id)
-        await personal_info_dao.create(PersonalInfoDB(**personal_info.dict()))
+                                                 phone=personal_info.phone, payer_id=payer_id))
+
+        print(user_in_db)
+        await personal_info_dao.create(PersonalInfoDB(**personal_info.dict(), user_id=user_in_db.id))
+        bonus_acc_dao = instance(IBonusAccDAO)
+        bonus_history_dao = instance(IBonusHistoryDAO)
+
+        id_ = await bonus_acc_dao.create(BonusAccDB(payer_id=payer_id, balls=50, user_id=user_in_db.id))
+        await bonus_history_dao.create(BonusHistoryDB(bonus_acc_id=id_, bonus_type='save_data'))
+
+    # else:
+    #    user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
+    #                                             email='{}@online.pay'.format(personal_info.phone), name='',
+    #                                             lastname='', grandname='', city='', street='', home='',
+    #                                             phone=personal_info.phone, payer_id=payer_id))
+    #    personal_info_db = personal_infos.items[0]
+    #   await personal_info_dao.delete(personal_info_db.id)
+    #   await personal_info_dao.create(PersonalInfoDB(**personal_info.dict()))
 
 
 @router.get('/get-receipt', description='Данные квитанции по ID')
@@ -364,6 +377,18 @@ async def upload_image(file: UploadFile = File(...)) -> str:
 @router.get('/change-status', description='Изменение статуса квитанции')
 async def change_status(receipt_id: UUID4):
     receipt: ReceiptDB = await receipt_dao.get(receipt_id)
+
+    personal_info = await personal_info_dao.list(0, 1, dict(payer_id=receipt.payer_id))
+
+    bonus_acc = await bonus_acc_dao.list(0, 1, dict(user_id=personal_info.items[0].user_id))
+
+    acc = bonus_acc.items[0]
+
+    acc.balls += 10
+    await bonus_acc_dao.update(acc)
+
+    await bonus_history_dao.create(BonusHistoryDB(bonus_acc_id=acc.id, bonus_type='confirmation_payment'))
+
     receipt.status = 'paid'
     await receipt_dao.update(receipt)
 
@@ -414,26 +439,29 @@ class FilterData(BaseModel):
     start: str
     end: str
 
+
 @router.get('/get-months')
 async def get_months() -> List[FilterData]:
-
     resp_months = []
 
     dt = datetime.datetime.now()
 
-
     dt_month_last_day = calendar.monthrange(dt.year, dt.month)[1]
-    current_df = FilterData(title=months.get(dt.month), start='{}-{}-{}'.format(dt.year, dt.month, 1), end='{}-{}-{}'.format(dt.year, dt.month, dt_month_last_day))
+    current_df = FilterData(title=months.get(dt.month), start='{}-{}-{}'.format(dt.year, dt.month, 1),
+                            end='{}-{}-{}'.format(dt.year, dt.month, dt_month_last_day))
 
     next_month = dt + dateutil.relativedelta.relativedelta(months=1)
     prev_month = dt - dateutil.relativedelta.relativedelta(months=1)
 
-    next_df = FilterData(title=months.get(next_month.month), start='{}-{}-{}'.format(next_month.year, next_month.month, 1),
-                             end='{}-{}-{}'.format(next_month.year, next_month.month, calendar.monthrange(next_month.year, next_month.month)[1]))
+    next_df = FilterData(title=months.get(next_month.month),
+                         start='{}-{}-{}'.format(next_month.year, next_month.month, 1),
+                         end='{}-{}-{}'.format(next_month.year, next_month.month,
+                                               calendar.monthrange(next_month.year, next_month.month)[1]))
 
-    prev_df = FilterData(title=months.get(prev_month.month), start='{}-{}-{}'.format(prev_month.year, prev_month.month, 1),
-                             end='{}-{}-{}'.format(prev_month.year, prev_month.month, calendar.monthrange(prev_month.year, prev_month.month)[1]))
-
+    prev_df = FilterData(title=months.get(prev_month.month),
+                         start='{}-{}-{}'.format(prev_month.year, prev_month.month, 1),
+                         end='{}-{}-{}'.format(prev_month.year, prev_month.month,
+                                               calendar.monthrange(prev_month.year, prev_month.month)[1]))
 
     resp_months.append(prev_df)
     resp_months.append(current_df)
@@ -445,14 +473,13 @@ async def get_months() -> List[FilterData]:
 class SendValidationSmsRq(BaseModel):
     phone: str
 
+
 @router.post('/sendValidationSms')
 async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
     user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
+    print(user_in_db)
 
     if user_in_db:
-        from secrets import choice
-        import string
-
         password = ''.join([choice(string.digits) for _ in range(6)])
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
@@ -463,3 +490,24 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
         return True
     else:
         raise HTTPException(status_code=500, detail='Нет в базе')
+
+
+class BonusResp(BaseModel):
+    balls: int
+    history_bonus: List[BonusHistoryDB]
+
+
+@router.get('/bonuses', description='Квитанции')
+async def bonuses(page: int = 0, user=Depends(fastapi_users.get_current_user)):
+    skip = page * HISTORY_PAGE_SIZE
+
+    filters = dict(user_id=user.id)
+    bonus_acc = await bonus_acc_dao.list(0, 1, filters)
+    print(bonus_acc)
+
+    acc = bonus_acc.items[0]
+
+    history = await bonus_history_dao.list(skip, HISTORY_PAGE_SIZE, dict(bonus_acc_id=acc.id))
+
+    resp = BonusResp(balls=acc.balls, history_bonus=history.items)
+    return resp

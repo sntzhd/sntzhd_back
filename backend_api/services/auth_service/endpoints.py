@@ -25,7 +25,7 @@ jwt_authentication = JWTAuthentication(secret=secret_config.SECRET_KEY, lifetime
 auth_backends.append(jwt_authentication)
 
 class User(models.BaseUser):
-    pass
+    payer_id: str
 
 
 
@@ -52,6 +52,7 @@ class UserDB(User, models.BaseUserDB):
     street: str
     home: str
     phone: str
+    payer_id: str
 
 
 def on_after_register(user: UserDB, request: Request):

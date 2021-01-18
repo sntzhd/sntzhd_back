@@ -43,3 +43,9 @@ class IReceiptDAO(IGenericDAO):
 
 class IPersonalInfoDAO(IGenericDAO):
     pass
+
+class IBonusAccDAO(IGenericDAO):
+    pass
+
+class IBonusHistoryDAO(IGenericDAO):
+    pass

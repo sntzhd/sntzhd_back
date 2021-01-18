@@ -1,0 +1,7 @@
+uvicorn
+fastapi
+Inject
+motor
+fastapi-users
+pydantic
+pydantic[dotenv]

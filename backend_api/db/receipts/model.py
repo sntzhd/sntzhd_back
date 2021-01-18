@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, UUID4
 from typing import Dict, Optional, Any
 from decimal import Decimal
 from datetime import datetime
@@ -49,6 +49,7 @@ class ReceiptDB(BaseDBModel):
 
 
 class PersonalInfoDB(BaseDBModel):
+    user_id: UUID4
     snt_alias: str
     street_name: str
     payer_id: str
