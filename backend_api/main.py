@@ -12,7 +12,8 @@ inject.configure(base)
 origins = [
     'http://localhost',
     'http://localhost:4200',
-    'https://receipts.ecom.net.ua'
+    'https://receipts.ecom.net.ua',
+    'http://130.193.59.212'
 ]
 app.add_middleware(
     CORSMiddleware,

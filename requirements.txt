@@ -5,3 +5,5 @@ motor
 fastapi-users
 pydantic
 pydantic[dotenv]
+WeasyPrint
+python-dateutil
