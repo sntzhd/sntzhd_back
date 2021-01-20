@@ -49,3 +49,9 @@ class IBonusAccDAO(IGenericDAO):
 
 class IBonusHistoryDAO(IGenericDAO):
     pass
+
+class IDelegateDAO(IGenericDAO):
+    pass
+
+class IDelegateEventDAO(IGenericDAO):
+    pass

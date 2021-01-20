@@ -16,11 +16,14 @@ import calendar
 import dateutil.relativedelta
 from secrets import choice
 import string
+import base64
+import json
 
 from backend_api.utils import instance
-from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO
+from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
+                                    IDelegateEventDAO)
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity
-from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB
+from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
@@ -39,6 +42,8 @@ personal_info_dao: IPersonalInfoDAO = instance(IPersonalInfoDAO)
 file_dao = instance(IFileDAO)
 bonus_acc_dao = instance(IBonusAccDAO)
 bonus_history_dao = instance(IBonusHistoryDAO)
+delegate_dao = instance(IDelegateDAO)
+delegate_event_dao = instance(IDelegateEventDAO)
 
 response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankName', bic='BIC', corresp_acc='CorrespAcc',
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
@@ -248,13 +253,17 @@ async def get_pdf(request: Request, order_id: UUID4):
         sum_rub = str(r.result_sum)
         sum_cop = '00'
 
+    print(r)
+
     t = templates.TemplateResponse("receipt_new.html",
                                    {"request": request, 'year': r.created_date.year,
                                     'month': months.get(r.created_date.month),
                                     'day': r.created_date.day, 'sum_rub': sum_rub, 'sum_cop': sum_cop,
-                                    'Sum': r.result_sum, 'Name': r.name, 'KPP': r.kpp, 'PayeeINN': r.payee_inn,
-                                    'PersonalAcc': r.personal_acc, 'BankName': r.bank_name, 'BIC': r.bic,
-                                    'CorrespAcc': r.corresp_acc, 'КБК': '1', 'purpose': r.purpose,
+                                    'Sum': r.result_sum, 'Name': sntzhd.get('name'),
+                                    'KPP': sntzhd.get('kpp'), 'PayeeINN': sntzhd.get('payee_inn'),
+                                    'PersonalAcc': sntzhd.get('personal_acc'), 'BankName': sntzhd.get('bank_name'),
+                                    'BIC': sntzhd.get('bic'),
+                                    'CorrespAcc': sntzhd.get('corresp_acc'), 'КБК': '1', 'purpose': r.purpose,
                                     'payerAddress': r.payer_address, 'lastName': r.last_name, 'img_url': r.img_url}
                                    )
     print(dir(r.result_sum))
@@ -266,10 +275,38 @@ async def get_pdf(request: Request, order_id: UUID4):
     return FileResponse('{}/order.pdf'.format(BASE_DIR))
 
 
+class User(BaseModel):
+    id: UUID4
+    username: str
+    email: str
+    is_active: bool
+    is_superuser: bool
+
+
+class OldValueResp(BaseModel):
+    item: BaseModel
+    count: int
+    access_upload: bool
+
+
 @router.get('/get-old-value', description='Предыдущие показания')
-async def get_old_value(payer_address: str):
+async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.get_optional_current_active_user)):
+    access_upload = False
     receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
-    return ListResponse(items=receipts.items, count=receipts.count)
+    if user != None:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+        personal_info: PersonalInfoDB = personal_infos.items[0]
+
+        if receipts.items[0].payer_id == personal_info.payer_id:
+            access_upload = True
+        print(personal_infos)
+        print(user.id, 'fffffffffff')
+        print(receipts.items[0].payer_id)
+
+
+    receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
+    print(receipts.items[0].payer_id)
+    return OldValueResp(item=receipts.items[0], count=receipts.count, access_upload=access_upload)
 
 
 @router.post('/save-pi', description='Сохранение данных платильщика')
@@ -354,24 +391,20 @@ async def file(
 
 @router.post('/upload-image')
 async def upload_image(file: UploadFile = File(...)) -> str:
-    # print(dir(file))
+    api = 'https://functions.yandexcloud.net/d4edmtn5porf8th89vro'
 
-    # print(file.file)
+    im_b64 = base64.b64encode(file.file.read()).decode("utf8")
 
-    with open('/home/tram/base_register_back/elocal.png', "rb") as image_file:
-        import base64
-        from io import BytesIO
-        encoded_string = base64.b64encode(image_file.read())
-        # print(encoded_string)
-
-    data = {'function': 'image2bucket', 'image': encoded_string, }
     headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-    r = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro', data, headers=headers)
 
-    print(r.text)
-    # file_dao = instance(IFileDAO)
-    # id_ = await file_dao.add(file)
-    # return id_
+    payload = json.dumps(
+        {'request': {'image': im_b64}, 'function': 'image2bucket'})
+    response = requests.post(api, data=payload, headers=headers)
+    try:
+        data = response.json()
+        return data.get('response').get('unique')
+    except requests.exceptions.RequestException:
+        print(response.text)
 
 
 @router.get('/change-status', description='Изменение статуса квитанции')
@@ -487,6 +520,7 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
 
         send_sms(rq.phone, password)
 
+
         return True
     else:
         raise HTTPException(status_code=500, detail='Нет в базе')
@@ -511,3 +545,57 @@ async def bonuses(page: int = 0, user=Depends(fastapi_users.get_current_user)):
 
     resp = BonusResp(balls=acc.balls, history_bonus=history.items)
     return resp
+
+
+class AddDelegateStartRQ(BaseModel):
+    phone: str
+
+class AddDelegateEndRQ(BaseModel):
+    phone: str
+    code: str
+
+@router.post('/add-delegate-start')
+async def add_delegate_start(rq: AddDelegateStartRQ, user=Depends(fastapi_users.get_current_user)) -> str:
+    personal_infos = await personal_info_dao.list(0, 1, {'phone': rq.phone})
+    print(personal_infos)
+
+    if personal_infos.count == 0:
+        raise HTTPException(status_code=500, detail='Нет в базе')
+    else:
+        p_info = personal_infos.items[0]
+        code = ''.join([choice(string.digits) for _ in range(6)])
+        print(code)
+        id_ = await delegate_event_dao.create(DelegateEventDB(user_id=user.id, delegated_id=p_info.user_id, code=code))
+        return id_
+
+
+@router.post('/add-delegate-end')
+async def add_delegate_end(rq: AddDelegateEndRQ, user=Depends(fastapi_users.get_current_user)) -> str:
+
+    delegate_events = await delegate_event_dao.list(0, 1, dict(code=rq.code, user_id=user.id))
+    if delegate_events.count == 0:
+        raise HTTPException(status_code=500, detail='Не верный код')
+    else:
+        delegates = await delegate_dao.list(0 ,1, dict(user_id=user.id))
+        if delegates.count == 0:
+            await delegate_dao.create(DelegateDB(user_id=user.id, client_ids=[delegate_events.items[0].delegated_id]))
+        else:
+            delegate = delegates.items[0]
+            print(delegate_events.items[0].delegated_id)
+            print(delegate.client_ids)
+            if delegate_events.items[0].delegated_id not in delegate.client_ids:
+                delegate.client_ids.append(delegate_events.items[0].delegated_id)
+                await delegate_dao.update(delegate)
+
+
+@router.get('/delegates')
+async def delegates(user=Depends(fastapi_users.get_current_user)) -> List[PayerInfo]:
+    delegates = await delegate_dao.list(0, 1, dict(user_id=user.id))
+    print(delegates)
+
+    if delegates.count == 0:
+        raise HTTPException(status_code=500, detail='Не делегат')
+
+    delegate = delegates.items[0]
+    personal_infos = await personal_info_dao.list(0, 1000, {'user_id': {'$in': delegate.client_ids}})
+    return personal_infos.items

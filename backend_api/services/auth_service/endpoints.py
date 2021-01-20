@@ -7,6 +7,7 @@ import motor.motor_asyncio
 from fastapi import FastAPI, Request
 #from db.users.models import UserBaseDB, UserBaseCreate, UserBase
 
+
 from config import mongo_config, secret_config
 
 db_name = uri_parser.parse_uri(mongo_config.URI)['database']

@@ -7,3 +7,5 @@ pydantic
 pydantic[dotenv]
 WeasyPrint
 python-dateutil
+aiofiles
+jinja2

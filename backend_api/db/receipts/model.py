@@ -1,5 +1,5 @@
 from pydantic import Field, UUID4
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, List
 from decimal import Decimal
 from datetime import datetime
 
@@ -55,3 +55,14 @@ class PersonalInfoDB(BaseDBModel):
     payer_id: str
     numsite: str
     phone: str
+
+
+class DelegateDB(BaseDBModel):
+    user_id: UUID4
+    client_ids: List[UUID4]
+
+
+class DelegateEventDB(BaseDBModel):
+    user_id: UUID4
+    delegated_id: UUID4
+    code: str
