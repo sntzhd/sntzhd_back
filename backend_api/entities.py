@@ -10,7 +10,8 @@ class PayStatus(str, Enum):
     paid = 'paid'
 
 class Services(str, Enum):
-    new = 'electricity'
+    electricity = 'electricity'
+    losses = 'losses'
 
 class ReceiptEntity(BaseModel):
     name: str
