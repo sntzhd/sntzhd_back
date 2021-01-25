@@ -17,7 +17,7 @@ SMSC_PASSWORD = "Tb709DWc"	# пароль
 SMSC_POST = False				# использовать метод POST
 SMSC_HTTPS = False				# использовать HTTPS протокол
 SMSC_CHARSET = "utf-8"			# кодировка сообщения (windows-1251 или koi8-r), по умолчанию используется utf-8
-SMSC_DEBUG = False				# флаг отладки
+SMSC_DEBUG = True				# флаг отладки
 
 # Константы для отправки SMS по SMTP
 SMTP_FROM = "api@smsc.ru"		# e-mail адрес отправителя

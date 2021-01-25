@@ -11,6 +11,7 @@ class MongoConfig(BaseSettings):
 class SecretConfig(BaseSettings):
     SECRET_KEY: str
     SMS_SERVIE_ID: str
+    SEND_SMS: bool
 
     class Config:
         env_file = '.env'
@@ -31,3 +32,4 @@ mongo_config = MongoConfig()
 secret_config = SecretConfig()
 run_backend_api_config = RunConfigBackendAPI()
 remote_service_config = RemoteServiceConfig()
+

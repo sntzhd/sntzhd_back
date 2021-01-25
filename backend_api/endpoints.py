@@ -22,7 +22,7 @@ import json
 from backend_api.utils import instance
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO)
-from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity
+from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity
 from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
@@ -32,6 +32,7 @@ from backend_api.services.auth_service.endpoints import user_db, UserDB
 from backend_api.utils import create_id
 from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
+from config import secret_config
 
 router = APIRouter()
 
@@ -73,6 +74,16 @@ sntzhd = dict(name='СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name='Ф�
 aliases = dict(sntzhd=sntzhd)
 
 
+class AliasInfoResp(BaseModel):
+    name: str
+    bank_name: str
+    bic: str
+    corresp_acc: str
+    kpp: str
+    payee_inn: str
+    personal_acc: str
+
+
 def get_work_key(k):
     wk = response_keys.get(k)
 
@@ -86,6 +97,7 @@ class CreateReceiptResponse(BaseModel):
     receipt: ReceiptDB
     formating_date: str
     formating_sum: str
+    alias_info: AliasInfoResp
 
 
 @router.post('/create-receipt', description='Создание квитанции')
@@ -167,8 +179,19 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     last_name_only = receipt.last_name
     receipt.last_name = '{} {}. {}.'.format(receipt.last_name, receipt.first_name[0], receipt.grand_name[0])
 
-    receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                            receipt.payer_address, receipt.purpose)
+
+
+    if receipt.counter_type == 2:
+        receipt.purpose = 'Т1 {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
+                                                                 receipt.payer_address, receipt.purpose)
+
+        t2p = 'Т2 {} (расход {} кВт), {}, {}'.format(receipt.t2_current, receipt.rashod_t2,
+                                                     receipt.payer_address, receipt.purpose)
+        receipt.purpose = '{}\n{}'.format(receipt.purpose, t2p)
+
+    else:
+        receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
+                                                                receipt.payer_address, receipt.purpose)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -208,7 +231,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop))
+                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop),
+                                 alias_info=AliasInfoResp(**alias))
 
 
 @router.get('/receipts', description='Квитанции')
@@ -284,7 +308,7 @@ class User(BaseModel):
 
 
 class OldValueResp(BaseModel):
-    item: BaseModel
+    item: OldReceiptEntity
     count: int
     access_upload: bool
 
@@ -302,7 +326,6 @@ async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.g
         print(personal_infos)
         print(user.id, 'fffffffffff')
         print(receipts.items[0].payer_id)
-
 
     receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
     print(receipts.items[0].payer_id)
@@ -330,14 +353,24 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, personal_info.numsite)
     personal_info.payer_id = payer_id
-
+    print(personal_infos)
     if personal_infos.count == 0:
+        phone = personal_info.phone
+        if personal_info.phone[0] == '+':
+            phone =personal_info.phone[1:]
+
+        print(phone, 'phone')
+
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
-                                                 email='{}@online.pay'.format(personal_info.phone), name='',
+                                                 email='{}@online.pay'.format(phone), name='',
                                                  lastname='', grandname='', city='', street='', home='',
                                                  phone=personal_info.phone, payer_id=payer_id))
 
-        print(user_in_db)
+
+        if personal_info.phone[0] == '+':
+            personal_info.phone = personal_info.phone[1:]
+
+
         await personal_info_dao.create(PersonalInfoDB(**personal_info.dict(), user_id=user_in_db.id))
         bonus_acc_dao = instance(IBonusAccDAO)
         bonus_history_dao = instance(IBonusHistoryDAO)
@@ -508,20 +541,33 @@ class SendValidationSmsRq(BaseModel):
 
 
 @router.post('/sendValidationSms')
-async def send_validation_sms(rq: SendValidationSmsRq) -> bool:
+async def send_validation_sms(rq: SendValidationSmsRq) -> str:
     user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
     print(user_in_db)
+
+    if user_in_db == None:
+        if rq.phone[0] == '+':
+            user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone[1:]))
+        else:
+            user_in_db = await user_db.get_by_email('+{}@online.pay'.format(rq.phone))
+
+    print(user_in_db, 'user_in_db')
 
     if user_in_db:
         password = ''.join([choice(string.digits) for _ in range(6)])
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
-        print(password)
-
-        send_sms(rq.phone, password)
 
 
-        return True
+        if secret_config.SEND_SMS:
+            send_sms_status = send_sms(rq.phone, password)
+
+            if send_sms_status == False:
+                raise HTTPException(status_code=500, detail='Ошибка сервиса')
+        else:
+            print(password)
+
+        return password
     else:
         raise HTTPException(status_code=500, detail='Нет в базе')
 
@@ -531,7 +577,7 @@ class BonusResp(BaseModel):
     history_bonus: List[BonusHistoryDB]
 
 
-@router.get('/bonuses', description='Квитанции')
+@router.get('/bonuses', description='Бонусы')
 async def bonuses(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
 
@@ -550,9 +596,11 @@ async def bonuses(page: int = 0, user=Depends(fastapi_users.get_current_user)):
 class AddDelegateStartRQ(BaseModel):
     phone: str
 
+
 class AddDelegateEndRQ(BaseModel):
     phone: str
     code: str
+
 
 @router.post('/add-delegate-start')
 async def add_delegate_start(rq: AddDelegateStartRQ, user=Depends(fastapi_users.get_current_user)) -> str:
@@ -571,12 +619,11 @@ async def add_delegate_start(rq: AddDelegateStartRQ, user=Depends(fastapi_users.
 
 @router.post('/add-delegate-end')
 async def add_delegate_end(rq: AddDelegateEndRQ, user=Depends(fastapi_users.get_current_user)) -> str:
-
     delegate_events = await delegate_event_dao.list(0, 1, dict(code=rq.code, user_id=user.id))
     if delegate_events.count == 0:
         raise HTTPException(status_code=500, detail='Не верный код')
     else:
-        delegates = await delegate_dao.list(0 ,1, dict(user_id=user.id))
+        delegates = await delegate_dao.list(0, 1, dict(user_id=user.id))
         if delegates.count == 0:
             await delegate_dao.create(DelegateDB(user_id=user.id, client_ids=[delegate_events.items[0].delegated_id]))
         else:
