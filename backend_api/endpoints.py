@@ -18,6 +18,7 @@ from secrets import choice
 import string
 import base64
 import json
+import re
 
 from backend_api.utils import instance
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
@@ -650,8 +651,41 @@ async def delegates(user=Depends(fastapi_users.get_current_user)) -> List[PayerI
     return personal_infos.items
 
 
+verification_data = ['ПОТЕР', '%', 'ЭЛЕКТРОЭНЕРГИИ', 'ПРОТОКОЛ', '15', 'ЭЛЕКТРО']
+verification_data_lose = ['ПОТЕР', '%', 'ПРОТОКОЛ', '15']
+verification_data_el = ['ЭЛЕКТРОЭНЕРГИИ', 'ЭЛЕКТРО']
+
+
+def payment_destination_checker(value: str):
+    for i in verification_data:
+        result = re.findall(r'{}'.format(i), value)
+        if len(result) > 0:
+            return True
+    return False
+
+
+def payment_no_double_destination_checker(value: str):
+    find_results = []
+
+    for i in verification_data:
+        result = re.findall(r'{}'.format(i), value)
+        if len(result) > 0:
+            find_results.append(i)
+
+    if (len([find_result for find_result in find_results if find_result in verification_data_lose]) > 0 and len(
+            [find_result for find_result in find_results if find_result in verification_data_el])):
+        return False
+    else:
+        return True
+
+
+class RawReceiptCheck(BaseModel):
+    title: str
+    test_result: bool
+
+
 @router.post('csv-parser')
-async def upload_image(file: UploadFile = File(...)):
+async def csv_parser() -> List[RawReceiptCheck]:
     import codecs
 
     # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
@@ -659,16 +693,28 @@ async def upload_image(file: UploadFile = File(...)):
     # out = codecs.open('e.csv', 'w', 'utf-8')
     # out.write(u)
 
+    raw_receipt_check_list = []
+
     import csv
-    import re
 
-    with open('/home/tram/PycharmProjects/base_register_back/e.csv', newline='') as File:
+    with open('/home/tram/PycharmProjects/base_register_back/e.csv', newline='\n') as File:
         reader = csv.reader(File)
+        rc = 1
         for row in reader:
-            payment_for_electricity = False
-            payment_of_losses = False
+            payment_no_double_destination = False
 
-            try:
-                print(row[1])
-            except IndexError:
-                pass
+            value_str = ' '.join(row)
+
+            print(value_str)
+            payment_destination = payment_destination_checker(value_str)
+            payment_no_double_destination = payment_no_double_destination_checker(value_str)
+
+            if payment_destination and payment_no_double_destination:
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True))
+            else:
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False))
+
+            print('######################################################{}'.format(rc))
+            rc += 1
+
+    return raw_receipt_check_list
