@@ -100,6 +100,10 @@ class CreateReceiptResponse(BaseModel):
     alias_info: AliasInfoResp
 
 
+el_text = 'Оплата электроэнергии по договору №10177'
+lose_text = 'ПОТЕРИ 15% СОГЛАСНОПРОТОКОЛУ №9 ОТ 28.03.2015Г'
+
+
 @router.post('/create-receipt', description='Создание квитанции')
 async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     current_tariff = None
@@ -179,19 +183,17 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     last_name_only = receipt.last_name
     receipt.last_name = '{} {}. {}.'.format(receipt.last_name, receipt.first_name[0], receipt.grand_name[0])
 
-
-
     if receipt.counter_type == 2:
-        receipt.purpose = 'Т1 {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                 receipt.payer_address, receipt.purpose)
+        receipt.purpose = 'Т1 {} (расход {} кВт),'.format(receipt.t1_current, receipt.rashod_t1)
 
-        t2p = 'Т2 {} (расход {} кВт), {}, {}'.format(receipt.t2_current, receipt.rashod_t2,
-                                                     receipt.payer_address, receipt.purpose)
-        receipt.purpose = '{}\n{}'.format(receipt.purpose, t2p)
-
+        t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
+                                             )
+        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p, receipt.payer_address,
+                                                  el_text if receipt.service_name == 'electricity' else lose_text)
     else:
-        receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                receipt.payer_address, receipt.purpose)
+        receipt.purpose = 'Т {} (расход {} кВт), {}, {} {}'.format(receipt.t1_current, receipt.rashod_t1,
+                                                                   receipt.payer_address, receipt.purpose,
+                                                                   el_text if receipt.service_name == 'electricity' else lose_text)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -216,6 +218,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     t1_expense = receipt.t1_current * receipt.t1_paid
     t1_sum = float(current_tariff.get('t0_tariff'))
 
+    print(receipt.purpose, 'dddddddddddddddddd')
+
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=last_name_only))
@@ -227,6 +231,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         sum_rub = str(receipt.result_sum)
         sum_cop = '00'
 
+    print(receipt.purpose, 'DBDBDBD')
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=t1_expense, t1_sum=t1_sum,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
@@ -357,7 +362,7 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
     if personal_infos.count == 0:
         phone = personal_info.phone
         if personal_info.phone[0] == '+':
-            phone =personal_info.phone[1:]
+            phone = personal_info.phone[1:]
 
         print(phone, 'phone')
 
@@ -366,10 +371,8 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
                                                  lastname='', grandname='', city='', street='', home='',
                                                  phone=personal_info.phone, payer_id=payer_id))
 
-
         if personal_info.phone[0] == '+':
             personal_info.phone = personal_info.phone[1:]
-
 
         await personal_info_dao.create(PersonalInfoDB(**personal_info.dict(), user_id=user_in_db.id))
         bonus_acc_dao = instance(IBonusAccDAO)
@@ -558,7 +561,6 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
 
-
         if secret_config.SEND_SMS:
             send_sms_status = send_sms(rq.phone, password)
 
@@ -646,3 +648,27 @@ async def delegates(user=Depends(fastapi_users.get_current_user)) -> List[PayerI
     delegate = delegates.items[0]
     personal_infos = await personal_info_dao.list(0, 1000, {'user_id': {'$in': delegate.client_ids}})
     return personal_infos.items
+
+
+@router.post('csv-parser')
+async def upload_image(file: UploadFile = File(...)):
+    import codecs
+
+    # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
+    # u = f.read()  # now the contents have been transformed to a Unicode string
+    # out = codecs.open('e.csv', 'w', 'utf-8')
+    # out.write(u)
+
+    import csv
+    import re
+
+    with open('/home/tram/PycharmProjects/base_register_back/e.csv', newline='') as File:
+        reader = csv.reader(File)
+        for row in reader:
+            payment_for_electricity = False
+            payment_of_losses = False
+
+            try:
+                print(row[1])
+            except IndexError:
+                pass
