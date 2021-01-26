@@ -697,7 +697,7 @@ async def csv_parser() -> List[RawReceiptCheck]:
 
     import csv
 
-    with open('/home/tram/PycharmProjects/base_register_back/e.csv', newline='\n') as File:
+    with open('e.csv', newline='\n') as File:
         reader = csv.reader(File)
         rc = 1
         for row in reader:
