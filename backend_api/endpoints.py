@@ -126,7 +126,6 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
 
-    print(payer_id, 'payer_idpayer_idpayer_id')
 
     receipt.name = alias.get('name')
     receipt.bank_name = alias.get('bank_name')
@@ -145,7 +144,6 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     # receipt.personal_acc = '40703810007550006617'
 
     r = requests.get(remote_service_config.default_data_url)
-    print(remote_service_config.default_data_url)
 
     for tariff in r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs'):
 
@@ -168,12 +166,14 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff')) if receipt.counter_type == 1 else float(
             current_tariff.get('t1_tariff'))
 
-        print(t1_sum, 't0_tarifft0_tarifft0_tariff')
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
     else:
-        t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff')) if receipt.counter_type == 1 else float(
-            current_tariff.get('t1_tariff'))
+        if receipt.counter_type == 1:
+            t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff'))
+        else:
+            t1_sum = receipt.rashod_t1 * float(current_tariff.get('t1_tariff'))
+
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
 
@@ -212,14 +212,12 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
                                      "string": 'ST00012|{}'.format(qr_string)
                                  }})
 
-    print(qr_img.json().get('response'))
 
     img_url = qr_img.json().get('response').get('url')
 
     t1_expense = receipt.t1_current * receipt.t1_paid
     t1_sum = float(current_tariff.get('t0_tariff'))
 
-    print(receipt.purpose, 'dddddddddddddddddd')
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
@@ -232,12 +230,11 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         sum_rub = str(receipt.result_sum)
         sum_cop = '00'
 
-    print(receipt.purpose, 'DBDBDBD')
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=t1_expense, t1_sum=t1_sum,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop),
+                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop[:2]),
                                  alias_info=AliasInfoResp(**alias))
 
 
@@ -258,7 +255,6 @@ async def receipts(page: int = 0, street: str = None, start: str = None, end: st
         if date_end_obj > date_start_obj:
             filters.update({'created_date': {'$gte': date_start_obj, '$lte': date_end_obj}})
 
-    print(filters, 'filtersfiltersfilters')
 
     receipts = await receipt_dao.list(skip, HISTORY_PAGE_SIZE, filters)
     return ListResponse(items=receipts.items, count=receipts.count)
@@ -283,7 +279,6 @@ async def get_pdf(request: Request, order_id: UUID4):
         sum_rub = str(r.result_sum)
         sum_cop = '00'
 
-    print(r)
 
     t = templates.TemplateResponse("receipt_new.html",
                                    {"request": request, 'year': r.created_date.year,
@@ -296,7 +291,6 @@ async def get_pdf(request: Request, order_id: UUID4):
                                     'CorrespAcc': sntzhd.get('corresp_acc'), 'КБК': '1', 'purpose': r.purpose,
                                     'payerAddress': r.payer_address, 'lastName': r.last_name, 'img_url': r.img_url}
                                    )
-    print(dir(r.result_sum))
     pdf = weasyprint.HTML(string=str(t.body, 'utf-8')).write_pdf()
     open('order.pdf', 'wb').write(pdf)
 
@@ -329,12 +323,10 @@ async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.g
 
         if receipts.items[0].payer_id == personal_info.payer_id:
             access_upload = True
-        print(personal_infos)
-        print(user.id, 'fffffffffff')
-        print(receipts.items[0].payer_id)
+
 
     receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
-    print(receipts.items[0].payer_id)
+
     return OldValueResp(item=receipts.items[0], count=receipts.count, access_upload=access_upload)
 
 
@@ -359,13 +351,12 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, personal_info.numsite)
     personal_info.payer_id = payer_id
-    print(personal_infos)
+
     if personal_infos.count == 0:
         phone = personal_info.phone
         if personal_info.phone[0] == '+':
             phone = personal_info.phone[1:]
 
-        print(phone, 'phone')
 
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(phone), name='',
@@ -547,15 +538,12 @@ class SendValidationSmsRq(BaseModel):
 @router.post('/sendValidationSms')
 async def send_validation_sms(rq: SendValidationSmsRq) -> str:
     user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
-    print(user_in_db)
 
     if user_in_db == None:
         if rq.phone[0] == '+':
             user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone[1:]))
         else:
             user_in_db = await user_db.get_by_email('+{}@online.pay'.format(rq.phone))
-
-    print(user_in_db, 'user_in_db')
 
     if user_in_db:
         password = ''.join([choice(string.digits) for _ in range(6)])
