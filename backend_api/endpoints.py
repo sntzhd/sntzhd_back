@@ -168,6 +168,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
+        if receipt.service_name == 'losses':
+            result_sum = result_sum * 0.15
     else:
         if receipt.counter_type == 1:
             t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff'))
@@ -176,6 +178,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
+        if receipt.service_name == 'losses':
+            result_sum = result_sum * 0.15
 
     # receipt.result_sum = int((result_sum * 100))
     receipt.result_sum = result_sum
