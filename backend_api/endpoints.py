@@ -203,7 +203,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     paym_period = '{}{}'.format(dt.month, dt.year) if dt.day <= 10 else '{}{}'.format((dt.month - 1), dt.year)
 
-    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}'.format(int((result_sum * 100)), paym_period)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(int((result_sum * 100)), paym_period, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
