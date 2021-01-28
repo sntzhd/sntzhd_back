@@ -163,8 +163,11 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
             raise HTTPException(status_code=500,
                                 detail='Ошибка # Не верное значение. Значение прошлого периода {} кВт'.format(
                                     receipts.items[0].rashod_t1))
-        t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff')) if receipt.counter_type == 1 else float(
-            current_tariff.get('t1_tariff'))
+
+        if receipt.counter_type == 1:
+            t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff'))
+        else:
+            t1_sum = receipt.rashod_t1 * float(current_tariff.get('t1_tariff'))
 
         t2_sum = receipt.rashod_t2 * float(current_tariff.get('t2_tariff'))
         result_sum = t1_sum + t2_sum
@@ -287,7 +290,7 @@ async def get_pdf(request: Request, order_id: UUID4):
     t = templates.TemplateResponse("receipt_new.html",
                                    {"request": request, 'year': r.created_date.year,
                                     'month': months.get(r.created_date.month),
-                                    'day': r.created_date.day, 'sum_rub': sum_rub, 'sum_cop': sum_cop,
+                                    'day': r.created_date.day, 'sum_rub': sum_rub, 'sum_cop': sum_cop[:2],
                                     'Sum': r.result_sum, 'Name': sntzhd.get('name'),
                                     'KPP': sntzhd.get('kpp'), 'PayeeINN': sntzhd.get('payee_inn'),
                                     'PersonalAcc': sntzhd.get('personal_acc'), 'BankName': sntzhd.get('bank_name'),
@@ -401,7 +404,7 @@ async def get_receipt(receipt_id: UUID4):
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop))
+                                 formating_sum='{} руб {} коп'.format(sum_rub, sum_cop[:2]))
 
 
 @router.get('/get/{id_}', name='get_file')
@@ -685,6 +688,14 @@ async def csv_parser() -> List[RawReceiptCheck]:
     # out = codecs.open('e.csv', 'w', 'utf-8')
     # out.write(u)
 
+    current_tariff = None
+    r = requests.get(remote_service_config.default_data_url)
+
+    for tariff in r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs'):
+        current_tariff = tariff
+        break
+
+
     raw_receipt_check_list = []
 
     import csv
@@ -706,7 +717,15 @@ async def csv_parser() -> List[RawReceiptCheck]:
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False))
 
+            for param in value_str.split(';'):
+                if param[:4] == 'СУМ:':
+                    print(float(param[4:]), current_tariff.get('t0_tariff'))
+
+                    rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
+                    print(rashod_t1)
+
             print('######################################################{}'.format(rc))
+
             rc += 1
 
     return raw_receipt_check_list
