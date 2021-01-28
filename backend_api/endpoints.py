@@ -102,7 +102,7 @@ class CreateReceiptResponse(BaseModel):
 
 
 el_text = 'Оплата электроэнергии по договору №10177'
-lose_text = 'ПОТЕРИ 15% СОГЛАСНОПРОТОКОЛУ №9 ОТ 28.03.2015Г'
+lose_text = 'ПОТЕРИ 15% СОГЛАСНО ПРОТОКОЛУ №9 ОТ 28.03.2015Г'
 
 
 @router.post('/create-receipt', description='Создание квитанции')
@@ -688,14 +688,10 @@ async def csv_parser() -> List[RawReceiptCheck]:
     # out = codecs.open('e.csv', 'w', 'utf-8')
     # out.write(u)
 
-    current_tariff = None
     r = requests.get(remote_service_config.default_data_url)
 
-    for tariff in r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs'):
-        current_tariff = tariff
-        break
 
-
+    current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
     raw_receipt_check_list = []
 
     import csv
@@ -722,7 +718,10 @@ async def csv_parser() -> List[RawReceiptCheck]:
                     print(float(param[4:]), current_tariff.get('t0_tariff'))
 
                     rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
-                    print(rashod_t1)
+                    rashod_t2 = float(param[4:]) / float(current_tariff.get('t1_tariff'))
+
+                    print(rashod_t1, '<< rashod_t1')
+                    print(rashod_t2, '<< rashod_t2')
 
             print('######################################################{}'.format(rc))
 
