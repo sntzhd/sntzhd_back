@@ -20,7 +20,7 @@ import base64
 import json
 import re
 
-from backend_api.utils import instance
+from backend_api.utils import instance, get_alias_info, get_street_id
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO)
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity
@@ -51,8 +51,6 @@ response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankNam
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
                      purpose='Purpose')
 
-url_streets = 'https://next.json-generator.com/api/json/get/N1kZKVgpK'
-
 months = {
     1: 'Январь',
     2: 'Февраль',
@@ -67,12 +65,6 @@ months = {
     11: 'Ноябрь',
     12: 'Декабрь'
 }
-
-sntzhd = dict(name='СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name='Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве',
-              bic='044525411', corresp_acc='30101810145250000411', kpp='231201001', payee_inn='2312088371',
-              personal_acc='40703810007550006617', purpose='Оплата электроэнергии по договору №10177', id='0883')
-
-aliases = dict(sntzhd=sntzhd)
 
 
 class AliasInfoResp(BaseModel):
@@ -109,23 +101,22 @@ lose_text = 'ПОТЕРИ 15% СОГЛАСНО ПРОТОКОЛУ №9 ОТ 28.0
 async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     current_tariff = None
 
-    alias = aliases.get(receipt.alias)
+    alias = get_alias_info(receipt.alias)
 
     if alias == None:
         raise HTTPException(status_code=500, detail='Не верный alias')
 
-    street_id = None
+    street_id = get_street_id(receipt)
 
-    r_streets = requests.get(url_streets)
+    # r_streets = requests.get(url_streets)
 
-    for snt in r_streets.json()['sntList']:
-        if snt.get('alias') == receipt.alias:
-            for street in snt.get('streetList'):
-                if street.get('strName') == receipt.street:
-                    street_id = street.get('strID')
+    # for snt in r_streets.json()['sntList']:
+    #    if snt.get('alias') == receipt.alias:
+    #        for street in snt.get('streetList'):
+    #           if street.get('strName') == receipt.street:
+    #               street_id = street.get('strID')
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-
 
     receipt.name = alias.get('name')
     receipt.bank_name = alias.get('bank_name')
@@ -219,12 +210,10 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
                                      "string": 'ST00012|{}'.format(qr_string)
                                  }})
 
-
     img_url = qr_img.json().get('response').get('url')
 
     t1_expense = receipt.t1_current * receipt.t1_paid
     t1_sum = float(current_tariff.get('t0_tariff'))
-
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
@@ -262,7 +251,6 @@ async def receipts(page: int = 0, street: str = None, start: str = None, end: st
         if date_end_obj > date_start_obj:
             filters.update({'created_date': {'$gte': date_start_obj, '$lte': date_end_obj}})
 
-
     receipts = await receipt_dao.list(skip, HISTORY_PAGE_SIZE, filters)
     return ListResponse(items=receipts.items, count=receipts.count)
 
@@ -285,7 +273,6 @@ async def get_pdf(request: Request, order_id: UUID4):
     except ValueError:
         sum_rub = str(r.result_sum)
         sum_cop = '00'
-
 
     t = templates.TemplateResponse("receipt_new.html",
                                    {"request": request, 'year': r.created_date.year,
@@ -331,7 +318,6 @@ async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.g
         if receipts.items[0].payer_id == personal_info.payer_id:
             access_upload = True
 
-
     receipts = await receipt_dao.list(0, 1, {'payer_address': payer_address})
 
     return OldValueResp(item=receipts.items[0], count=receipts.count, access_upload=access_upload)
@@ -363,7 +349,6 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
         phone = personal_info.phone
         if personal_info.phone[0] == '+':
             phone = personal_info.phone[1:]
-
 
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(phone), name='',
@@ -674,13 +659,59 @@ def payment_no_double_destination_checker(value: str):
         return True
 
 
+class MembershipReceiptEntity(ReceiptEntity):
+    year: str
+
+
+@router.post('/add-membership-fee')
+async def add_membership_fee(receipt: MembershipReceiptEntity):
+    alias = get_alias_info(receipt.alias)
+
+    if alias == None:
+        raise HTTPException(status_code=500, detail='Не верный alias')
+
+    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+                         k in response_keys.keys()])
+
+    street_id = get_street_id(receipt)
+
+    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(25000, receipt.year, payer_id)
+    # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
+
+    qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
+                           json={"function": "getQRcode",
+                                 "request": {
+                                     "string": 'ST00012|{}'.format(qr_string)
+                                 }})
+
+    img_url = qr_img.json().get('response').get('url')
+
+    receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(receipt.year)
+
+    id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
+                                             bill_qr_index=qr_img.json().get('response').get('unique'),
+                                             last_name_only=receipt.last_name))
+
+    receipt = await receipt_dao.get(id_)
+
+
+    return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
+                                 formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                  months.get(receipt.created_date.month),
+                                                                  receipt.created_date.year),
+                                 formating_sum='{} руб {} коп'.format(25000, '00'),
+                                 alias_info=AliasInfoResp(**alias))
+
+
 class RawReceiptCheck(BaseModel):
     title: str
     test_result: bool
+    payer_id: Optional[str]
 
 
 @router.post('csv-parser')
-async def csv_parser() -> List[RawReceiptCheck]:
+async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
     import codecs
 
     # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
@@ -688,8 +719,21 @@ async def csv_parser() -> List[RawReceiptCheck]:
     # out = codecs.open('e.csv', 'w', 'utf-8')
     # out.write(u)
 
-    r = requests.get(remote_service_config.default_data_url)
+    dict_streets = dict()
 
+    alias = get_alias_info(name_alias)
+
+    r = requests.get(remote_service_config.street_list_url)
+
+    for street in r.json().get('sntList')[0].get('streetList'):
+        dict_streets.update({street.get('strName').lower(): street.get('strID')})
+
+    print(dict_streets)
+
+    sreets_str = ''.join([street.get('strName') for street in r.json().get('sntList')[0].get('streetList')])
+    print(sreets_str)
+
+    r = requests.get(remote_service_config.default_data_url)
 
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
     raw_receipt_check_list = []
@@ -701,29 +745,36 @@ async def csv_parser() -> List[RawReceiptCheck]:
         rc = 1
         for row in reader:
             payment_no_double_destination = False
-
+            payer_id = None
             value_str = ' '.join(row)
 
-            print(value_str)
+            for param in value_str.split(';'):
+                try:
+                    result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
+                    if len(result) > 0:
+                        print(param, '<<<')
+                        payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
+                                                     dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
+                except re.error:
+                    pass
+                # if param[:4] == 'СУМ:':
+                #    print(float(param[4:]), current_tariff.get('t0_tariff'))
+
+                #    rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
+                #    rashod_t2 = float(param[4:]) / float(current_tariff.get('t1_tariff'))
+
+                #    print(rashod_t1, '<< rashod_t1')
+                #    print(rashod_t2, '<< rashod_t2')
+
+            # print('######################################################{}'.format(rc))
+
             payment_destination = payment_destination_checker(value_str)
             payment_no_double_destination = payment_no_double_destination_checker(value_str)
 
             if payment_destination and payment_no_double_destination:
-                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True))
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id))
             else:
-                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False))
-
-            for param in value_str.split(';'):
-                if param[:4] == 'СУМ:':
-                    print(float(param[4:]), current_tariff.get('t0_tariff'))
-
-                    rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
-                    rashod_t2 = float(param[4:]) / float(current_tariff.get('t1_tariff'))
-
-                    print(rashod_t1, '<< rashod_t1')
-                    print(rashod_t2, '<< rashod_t2')
-
-            print('######################################################{}'.format(rc))
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id))
 
             rc += 1
 
