@@ -266,6 +266,8 @@ async def delete_receipt(record_id: UUID4):
 async def get_pdf(request: Request, order_id: UUID4):
     templates = Jinja2Templates(directory="templates")
 
+
+
     r: ReceiptDB = await receipt_dao.get(order_id)
 
     try:
@@ -273,6 +275,8 @@ async def get_pdf(request: Request, order_id: UUID4):
     except ValueError:
         sum_rub = str(r.result_sum)
         sum_cop = '00'
+
+    sntzhd = get_alias_info('sntzhd')
 
     t = templates.TemplateResponse("receipt_new.html",
                                    {"request": request, 'year': r.created_date.year,
@@ -708,7 +712,21 @@ class RawReceiptCheck(BaseModel):
     title: str
     test_result: bool
     payer_id: Optional[str]
+    needHandApprove: bool
 
+
+
+def get_consumption_with_counter_type(counter_type: int, value: str):
+    print('get_consumption_with_counter_typeget_consumption_with_counter_typeget_consumption_with_counter_type')
+    print(value)
+    print('get_consumption_with_counter_typeget_consumption_with_counter_typeget_consumption_with_counter_type')
+
+def get_counter_type(value: str):
+    t1_result = re.findall(r'т1', value.lower())
+    t2_result = re.findall(r'т2', value.lower())
+    return (len(t1_result) + len(t2_result))
+    print(t1_result, 't1_result')
+    print(t2_result, 't2_result')
 
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
@@ -752,13 +770,18 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
                 try:
                     result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
                     if len(result) > 0:
-                        print(param, '<<<')
                         payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
                                                      dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
                 except re.error:
                     pass
-                # if param[:4] == 'СУМ:':
-                #    print(float(param[4:]), current_tariff.get('t0_tariff'))
+                if param[:4] == 'СУМ:':
+                    counter_type = get_counter_type(value_str)
+
+                    if counter_type > 0:
+                        get_consumption_with_counter_type(counter_type, value_str)
+                    else:
+                        pass
+
 
                 #    rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
                 #    rashod_t2 = float(param[4:]) / float(current_tariff.get('t1_tariff'))
@@ -768,13 +791,20 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
 
             # print('######################################################{}'.format(rc))
 
+
+
             payment_destination = payment_destination_checker(value_str)
             payment_no_double_destination = payment_no_double_destination_checker(value_str)
+            chack_sum = False
 
-            if payment_destination and payment_no_double_destination:
-                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id))
+
+
+            if payment_destination and payment_no_double_destination and chack_sum and payer_id:
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
+                                                              needHandApprove=False))
             else:
-                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id))
+                raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
+                                                              needHandApprove=True))
 
             rc += 1
 
