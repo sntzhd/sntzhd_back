@@ -148,7 +148,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
 
-    receipts = await receipt_dao.list(0, HISTORY_PAGE_SIZE, {'payer_address': receipt.payer_address})
+    receipts = await receipt_dao.list(0, HISTORY_PAGE_SIZE, {'payer_address': receipt.payer_address,
+                                                             'service_name': receipt.service_name})
 
     if receipts.count > 0:
         if receipt.t1_current <= receipts.items[0].t1_current:
