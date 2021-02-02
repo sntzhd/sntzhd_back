@@ -19,8 +19,9 @@ import string
 import base64
 import json
 import re
+from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_DOWN, MAX_PREC
 
-from backend_api.utils import instance, get_alias_info, get_street_id
+from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO)
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity
@@ -331,14 +332,15 @@ async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.g
 async def save_pi(personal_info: PersonalInfoEntity) -> str:
     personal_infos = await personal_info_dao.list(0, 1, {'phone': personal_info.phone})
 
-    alias = aliases.get(personal_info.snt_alias)
+    #alias = aliases.get(personal_info.snt_alias)
+    alias = get_alias_info(personal_info.snt_alias)
 
     if alias == None:
         raise HTTPException(status_code=500, detail='Не верный alias')
 
     street_id = None
 
-    r_streets = requests.get(url_streets)
+    r_streets = get_streets()
 
     for snt in r_streets.json()['sntList']:
         if snt.get('alias') == personal_info.snt_alias:
@@ -714,19 +716,49 @@ class RawReceiptCheck(BaseModel):
     payer_id: Optional[str]
     needHandApprove: bool
 
+class ConsumptionResp(BaseModel):
+    r1: Optional[Decimal]
+    r2: Optional[Decimal]
+    ok: bool
 
 
-def get_consumption_with_counter_type(counter_type: int, value: str):
-    print('get_consumption_with_counter_typeget_consumption_with_counter_typeget_consumption_with_counter_type')
-    print(value)
-    print('get_consumption_with_counter_typeget_consumption_with_counter_typeget_consumption_with_counter_type')
+def get_consumption_with_counter_type(counter_type: int, value: str) -> ConsumptionResp:
+    if counter_type == 1:
+        print(counter_type)
+    else:
+        r1 = None
+        r2 = None
+        found = False
+        params = value.split(' ')
+
+        for param in params:
+            res = re.findall(r'{}'.format('расход'), param.lower())
+
+            if found:
+                if r1 == None:
+                    r1 = param
+                else:
+                    r2 = param
+
+            if len(res) > 0:
+                found = True
+            else:
+                found = False
+
+
+    try:
+        r1value = Decimal(r1)
+        r2value = Decimal(r2)
+        return ConsumptionResp(r1=r1value, r2=r2value, ok=True)
+    except TypeError:
+        return ConsumptionResp(r1=None, r2=None, ok=False)
+
 
 def get_counter_type(value: str):
     t1_result = re.findall(r'т1', value.lower())
     t2_result = re.findall(r'т2', value.lower())
     return (len(t1_result) + len(t2_result))
-    print(t1_result, 't1_result')
-    print(t2_result, 't2_result')
+
 
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
@@ -765,6 +797,7 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
             payment_no_double_destination = False
             payer_id = None
             value_str = ' '.join(row)
+            check_value = False
 
             for param in value_str.split(';'):
                 try:
@@ -778,7 +811,32 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
                     counter_type = get_counter_type(value_str)
 
                     if counter_type > 0:
-                        get_consumption_with_counter_type(counter_type, value_str)
+                        consumptions = get_consumption_with_counter_type(counter_type, value_str)
+
+                        if consumptions.ok:
+                            if counter_type == 1:
+                                pay_sum = Decimal(param[4:])
+                                print(pay_sum, '<<<', consumptions)
+                            else:
+                                pay_sum = Decimal(param[4:])
+                                t_price = Decimal(current_tariff.get('t1_tariff'))
+                                sum1 = consumptions.r1 * t_price
+                                sum2 = consumptions.r2 * Decimal(current_tariff.get('t2_tariff'))
+                                result_sum = sum1 + sum2
+                                print(result_sum * Decimal('0.15'))
+                                print(value_str)
+                                print(result_sum, '<<<', consumptions, '<<<', param)
+
+                                if result_sum == pay_sum:
+                                    check_value = True
+                                else:
+                                    result_sum = result_sum * Decimal('0.15')
+                                    print("ELSE {} {}".format(result_sum.quantize(Decimal("1.00"), ROUND_HALF_EVEN), pay_sum), (result_sum == pay_sum))
+                                    if result_sum == pay_sum:
+                                        check_value = True
+                        #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
+                        #rint(consumptions)
+                        #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
                     else:
                         pass
 
@@ -799,7 +857,7 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
 
 
 
-            if payment_destination and payment_no_double_destination and chack_sum and payer_id:
+            if payment_destination and payment_no_double_destination and chack_sum and payer_id and check_value:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
                                                               needHandApprove=False))
             else:

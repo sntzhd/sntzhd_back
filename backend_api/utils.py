@@ -26,8 +26,10 @@ def create_id():
 def now():
     return datetime.utcnow()
 
+
 def send_sms(phone: str, code: str):
     pass
+
 
 def make_payer_id() -> str:
     pass
@@ -36,8 +38,10 @@ def make_payer_id() -> str:
 def get_payee_inn():
     pass
 
+
 def get_alias_info(alias_name: str) -> Dict[str, str]:
     return aliases.get(alias_name)
+
 
 def get_street_id(receipt: ReceiptEntity) -> str:
     street_id = None
@@ -50,3 +54,8 @@ def get_street_id(receipt: ReceiptEntity) -> str:
                 if street.get('strName') == receipt.street:
                     street_id = street.get('strID')
     return street_id
+
+
+def get_streets() -> str:
+    r_streets = requests.get(url_streets)
+    return r_streets
