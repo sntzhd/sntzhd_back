@@ -19,7 +19,7 @@ import string
 import base64
 import json
 import re
-from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_DOWN, MAX_PREC
+from decimal import Decimal, ROUND_FLOOR
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
@@ -798,7 +798,7 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
             payment_no_double_destination = False
             payer_id = None
             value_str = ' '.join(row)
-            check_value = False
+            chack_sum = False
 
             for param in value_str.split(';'):
                 try:
@@ -828,13 +828,14 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
                                 print(value_str)
                                 print(result_sum, '<<<', consumptions, '<<<', param)
 
-                                if result_sum == pay_sum:
-                                    check_value = True
+                                if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
+                                    chack_sum = True
                                 else:
                                     result_sum = result_sum * Decimal('0.15')
-                                    print("ELSE {} {}".format(result_sum.quantize(Decimal("1.00"), ROUND_HALF_EVEN), pay_sum), (result_sum == pay_sum))
-                                    if result_sum == pay_sum:
-                                        check_value = True
+                                    print("ELSE {} {}".format(result_sum.quantize(Decimal("1.00"), ROUND_FLOOR), pay_sum), (result_sum == pay_sum))
+                                    if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
+                                        print('CHACK TRUE')
+                                        chack_sum = True
                         #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
                         #rint(consumptions)
                         #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
@@ -854,11 +855,11 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
 
             payment_destination = payment_destination_checker(value_str)
             payment_no_double_destination = payment_no_double_destination_checker(value_str)
-            chack_sum = False
+            #chack_sum = False
 
 
 
-            if payment_destination and payment_no_double_destination and chack_sum and payer_id and check_value:
+            if payment_destination and payment_no_double_destination and payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
                                                               needHandApprove=False))
             else:
