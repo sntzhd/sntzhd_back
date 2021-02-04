@@ -20,6 +20,7 @@ import base64
 import json
 import re
 from decimal import Decimal, ROUND_FLOOR
+import csv
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
@@ -788,11 +789,9 @@ def get_counter_type(value: str):
 
 
 def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-    print(value)
     #print(sreets_str)
 
     for param in value.split(';'):
-        print('make_payer_id' ,param.split(' ')[0].lower())
         result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
         if len(result) > 0:
             payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
@@ -820,7 +819,7 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
                     pass
 
 @router.post('csv-parser')
-async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[RawReceiptCheck]:
+async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[RawReceiptCheck]:
     import codecs
 
     # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
@@ -845,15 +844,19 @@ async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[R
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
     raw_receipt_check_list = []
 
-    import csv
+    read_file_name = 'e.csv'
 
-    with open('e.csv', newline='\n') as File:
-        if len(rows) > 0:
-            reader = rows
-        else:
-            reader = csv.reader(File)
+    if input_row:
+        with open('testing_data.csv', 'w', newline='') as file:
+            writer = csv.writer(file, quoting=csv.QUOTE_ALL)
+            writer.writerow([input_row])
+            read_file_name = 'testing_data.csv'
+
+    with open(read_file_name, newline='\n') as File:
+        reader = csv.reader(File)
         rc = 1
         for row in reader:
+            print('ROW', ' '.join(row))
             payment_no_double_destination = False
             payer_id = make_payer_id(' '.join(row), sreets_str, alias, dict_streets)
             value_str = ' '.join(row)
@@ -919,48 +922,3 @@ async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[R
             rc += 1
 
     return raw_receipt_check_list
-
-
-@router.post('csv-parser-by-rows')
-async def csv_parser_by_rows(name_alias: str = 'sntzhd', row: str = '') -> List[RawReceiptCheck]:
-    dict_streets = dict()
-
-    alias = get_alias_info(name_alias)
-
-    r = requests.get(remote_service_config.street_list_url)
-
-    for street in r.json().get('sntList')[0].get('streetList'):
-        dict_streets.update({street.get('strName').lower(): street.get('strID')})
-
-    sreets_str = ''.join([street.get('strName') for street in r.json().get('sntList')[0].get('streetList')])
-    sreets = [street.get('strName') for street in r.json().get('sntList')[0].get('streetList')]
-
-    r = requests.get(remote_service_config.default_data_url)
-
-    current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
-    raw_receipt_check_list = []
-
-    #for row in rows:
-    #payer_id = make_payer_id(row, sreets_str, alias, dict_streets)
-    #print(row)
-    #print()
-    #print(row.split(';'))
-    #print(row.split(','))
-
-    params = row.split(' ') + row.split(';') + row.split(',')
-    #print(params)
-
-    #print(sreets)
-    for street in sreets:
-        result = re.findall(r'{}'.format(street.lower()), row.lower())
-        if len(result) > 0:
-            print(result)
-
-    #for param in params:
-    #    print(param)
-
-    #    try:
-    #        result = re.findall(r'{}'.format(param.lower()), sreets_str.lower())
-    #        print(result)
-    #    except re.error:
-    #        pass
