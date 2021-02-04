@@ -819,7 +819,7 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
                     pass
 
 @router.post('csv-parser')
-async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
+async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[RawReceiptCheck]:
     import codecs
 
     # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
@@ -891,20 +891,11 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
                                     result_sum = result_sum * Decimal('0.15')
                                     if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
                                         chack_sum = True
-                        #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
-                        #rint(consumptions)
-                        #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
                     else:
                         pass
 
 
-                #    rashod_t1 = float(param[4:]) / float(current_tariff.get('t0_tariff'))
-                #    rashod_t2 = float(param[4:]) / float(current_tariff.get('t1_tariff'))
 
-                #    print(rashod_t1, '<< rashod_t1')
-                #    print(rashod_t2, '<< rashod_t2')
-
-            # print('######################################################{}'.format(rc))
 
 
 
