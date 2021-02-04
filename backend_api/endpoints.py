@@ -10,7 +10,7 @@ from starlette.responses import StreamingResponse
 import io
 import time
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi_users.password import get_password_hash
 import calendar
 import dateutil.relativedelta
@@ -723,9 +723,31 @@ class ConsumptionResp(BaseModel):
     ok: bool
 
 
-def get_consumption_with_counter_type(counter_type: int, value: str) -> ConsumptionResp:
+def get_consumption_with_counter_type(counter_type: int, value: str, current_sum: str, current_tariff: Dict[str, Any]) -> ConsumptionResp:
     if counter_type == 1:
-        print(counter_type)
+        print('##############################################1')
+
+        electricity_sum = Decimal(current_sum) / Decimal(current_tariff.get('t0_tariff'))
+        losses_sum = (Decimal(current_sum) / Decimal(current_tariff.get('t0_tariff'))) * Decimal('0.15')
+
+        electricity_sum_str = str(int(electricity_sum))
+        losses_sum_str = str(int(losses_sum))
+
+        print('electricity_sum >>>', electricity_sum_str)
+        print('losses_sum >>>', losses_sum_str)
+
+        print(len(re.findall(r'{}'.format(electricity_sum_str), value)))
+        print(len(re.findall(r'{}'.format(losses_sum_str), value)))
+        print(value.split(' '))
+
+        if electricity_sum_str in re.findall('\d+', value):
+            return ConsumptionResp(r1=Decimal(electricity_sum_str), r2=None, ok=True)
+
+        if losses_sum_str in re.findall('\d+', value):
+            return ConsumptionResp(r1=Decimal(losses_sum_str), r2=None, ok=True)
+        print('##############################################2')
+        #print(value.split(' '), '<<<counter_type')
+        return ConsumptionResp(r1=None, r2=None, ok=False)
     else:
         r1 = None
         r2 = None
@@ -758,8 +780,43 @@ def get_consumption_with_counter_type(counter_type: int, value: str) -> Consumpt
 def get_counter_type(value: str):
     t1_result = re.findall(r'т1', value.lower())
     t2_result = re.findall(r'т2', value.lower())
-    return (len(t1_result) + len(t2_result))
 
+    if (len(t1_result) + len(t2_result)) > 0:
+        return (len(t1_result) + len(t2_result))
+    else:
+        return 1
+
+
+def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
+    #print(value)
+    #print(sreets_str)
+
+    for param in value.split(';'):
+        result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
+        if len(result) > 0:
+            payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
+                                     dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
+            return payer_id
+        else:
+            street_found = None
+            for param in value.split(' '):
+                from re import error
+                if street_found and len(param) > 0:
+                    if param[0] == '№':
+
+                        try:
+                            payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
+                                                     dict_streets.get(street_found), str(int(param[1:])))
+                            return payer_id
+                        except ValueError:
+                            break
+                try:
+                    result = re.findall(r'{}'.format(param.lower()), sreets_str.lower())
+                    if len(result) > 0:
+                        street_found = param.lower()
+
+                except error:
+                    pass
 
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
@@ -779,10 +836,8 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
     for street in r.json().get('sntList')[0].get('streetList'):
         dict_streets.update({street.get('strName').lower(): street.get('strID')})
 
-    print(dict_streets)
 
     sreets_str = ''.join([street.get('strName') for street in r.json().get('sntList')[0].get('streetList')])
-    print(sreets_str)
 
     r = requests.get(remote_service_config.default_data_url)
 
@@ -796,45 +851,45 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
         rc = 1
         for row in reader:
             payment_no_double_destination = False
-            payer_id = None
+            payer_id = make_payer_id(' '.join(row), sreets_str, alias, dict_streets)
             value_str = ' '.join(row)
             chack_sum = False
+            counter_type = get_counter_type(value_str)
+
+            if payer_id == None:
+                continue
 
             for param in value_str.split(';'):
-                try:
-                    result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
-                    if len(result) > 0:
-                        payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
-                                                     dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
-                except re.error:
-                    pass
+
                 if param[:4] == 'СУМ:':
-                    counter_type = get_counter_type(value_str)
+
 
                     if counter_type > 0:
-                        consumptions = get_consumption_with_counter_type(counter_type, value_str)
+                        consumptions = get_consumption_with_counter_type(counter_type, value_str, param[4:], current_tariff)
 
                         if consumptions.ok:
                             if counter_type == 1:
                                 pay_sum = Decimal(param[4:])
-                                print(pay_sum, '<<<', consumptions)
+                                t_price = Decimal(current_tariff.get('t0_tariff'))
+                                result_sum = consumptions.r1 * t_price
+                                if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
+                                    chack_sum = True
+                                else:
+                                    result_sum = result_sum * Decimal('0.15')
+                                    if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
+                                        chack_sum = True
                             else:
                                 pay_sum = Decimal(param[4:])
                                 t_price = Decimal(current_tariff.get('t1_tariff'))
                                 sum1 = consumptions.r1 * t_price
                                 sum2 = consumptions.r2 * Decimal(current_tariff.get('t2_tariff'))
                                 result_sum = sum1 + sum2
-                                print(result_sum * Decimal('0.15'))
-                                print(value_str)
-                                print(result_sum, '<<<', consumptions, '<<<', param)
 
                                 if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
                                     chack_sum = True
                                 else:
                                     result_sum = result_sum * Decimal('0.15')
-                                    print("ELSE {} {}".format(result_sum.quantize(Decimal("1.00"), ROUND_FLOOR), pay_sum), (result_sum == pay_sum))
                                     if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == pay_sum:
-                                        print('CHACK TRUE')
                                         chack_sum = True
                         #print('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
                         #rint(consumptions)
@@ -859,7 +914,7 @@ async def csv_parser(name_alias: str = 'sntzhd') -> List[RawReceiptCheck]:
 
 
 
-            if payment_destination and payment_no_double_destination and payer_id and chack_sum:
+            if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
                                                               needHandApprove=False))
             else:
