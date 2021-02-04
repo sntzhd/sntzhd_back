@@ -192,8 +192,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p, receipt.payer_address,
                                                   el_text if receipt.service_name == 'electricity' else lose_text)
     else:
-        receipt.purpose = 'Т {} (расход {} кВт), {}, {} {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                   receipt.payer_address, receipt.purpose,
+        receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
+                                                                   receipt.payer_address,
                                                                    el_text if receipt.service_name == 'electricity' else lose_text)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
@@ -788,10 +788,11 @@ def get_counter_type(value: str):
 
 
 def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-    #print(value)
+    print(value)
     #print(sreets_str)
 
     for param in value.split(';'):
+        print('make_payer_id' ,param.split(' ')[0].lower())
         result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
         if len(result) > 0:
             payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
@@ -847,7 +848,10 @@ async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[R
     import csv
 
     with open('e.csv', newline='\n') as File:
-        reader = csv.reader(File)
+        if len(rows) > 0:
+            reader = rows
+        else:
+            reader = csv.reader(File)
         rc = 1
         for row in reader:
             payment_no_double_destination = False
@@ -915,3 +919,48 @@ async def csv_parser(name_alias: str = 'sntzhd', rows: List[str] = []) -> List[R
             rc += 1
 
     return raw_receipt_check_list
+
+
+@router.post('csv-parser-by-rows')
+async def csv_parser_by_rows(name_alias: str = 'sntzhd', row: str = '') -> List[RawReceiptCheck]:
+    dict_streets = dict()
+
+    alias = get_alias_info(name_alias)
+
+    r = requests.get(remote_service_config.street_list_url)
+
+    for street in r.json().get('sntList')[0].get('streetList'):
+        dict_streets.update({street.get('strName').lower(): street.get('strID')})
+
+    sreets_str = ''.join([street.get('strName') for street in r.json().get('sntList')[0].get('streetList')])
+    sreets = [street.get('strName') for street in r.json().get('sntList')[0].get('streetList')]
+
+    r = requests.get(remote_service_config.default_data_url)
+
+    current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
+    raw_receipt_check_list = []
+
+    #for row in rows:
+    #payer_id = make_payer_id(row, sreets_str, alias, dict_streets)
+    #print(row)
+    #print()
+    #print(row.split(';'))
+    #print(row.split(','))
+
+    params = row.split(' ') + row.split(';') + row.split(',')
+    #print(params)
+
+    #print(sreets)
+    for street in sreets:
+        result = re.findall(r'{}'.format(street.lower()), row.lower())
+        if len(result) > 0:
+            print(result)
+
+    #for param in params:
+    #    print(param)
+
+    #    try:
+    #        result = re.findall(r'{}'.format(param.lower()), sreets_str.lower())
+    #        print(result)
+    #    except re.error:
+    #        pass
