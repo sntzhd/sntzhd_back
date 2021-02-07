@@ -25,7 +25,7 @@ import csv
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO)
-from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity
+from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, Services
 from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
@@ -194,8 +194,8 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
                                                   el_text if receipt.service_name == 'electricity' else lose_text)
     else:
         receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                   receipt.payer_address,
-                                                                   el_text if receipt.service_name == 'electricity' else lose_text)
+                                                                receipt.payer_address,
+                                                                el_text if receipt.service_name == 'electricity' else lose_text)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -269,8 +269,6 @@ async def delete_receipt(record_id: UUID4):
 async def get_pdf(request: Request, order_id: UUID4):
     templates = Jinja2Templates(directory="templates")
 
-
-
     r: ReceiptDB = await receipt_dao.get(order_id)
 
     try:
@@ -334,7 +332,7 @@ async def get_old_value(payer_address: str, user: User = Depends(fastapi_users.g
 async def save_pi(personal_info: PersonalInfoEntity) -> str:
     personal_infos = await personal_info_dao.list(0, 1, {'phone': personal_info.phone})
 
-    #alias = aliases.get(personal_info.snt_alias)
+    # alias = aliases.get(personal_info.snt_alias)
     alias = get_alias_info(personal_info.snt_alias)
 
     if alias == None:
@@ -697,14 +695,14 @@ async def add_membership_fee(receipt: MembershipReceiptEntity):
 
     img_url = qr_img.json().get('response').get('url')
 
-    receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(receipt.year)
+    receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(
+        receipt.year)
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=receipt.last_name))
 
     receipt = await receipt_dao.get(id_)
-
 
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
@@ -714,11 +712,18 @@ async def add_membership_fee(receipt: MembershipReceiptEntity):
                                  alias_info=AliasInfoResp(**alias))
 
 
+class ReceiptType(BaseModel):
+    service_name: Optional[Services]
+    counter_type: Optional[int]
+
+
 class RawReceiptCheck(BaseModel):
     title: str
     test_result: bool
     payer_id: Optional[str]
     needHandApprove: bool
+    receipt_type: Optional[ReceiptType]
+
 
 class ConsumptionResp(BaseModel):
     r1: Optional[Decimal]
@@ -726,7 +731,50 @@ class ConsumptionResp(BaseModel):
     ok: bool
 
 
-def get_consumption_with_counter_type(counter_type: int, value: str, current_sum: str, current_tariff: Dict[str, Any]) -> ConsumptionResp:
+def get_receipt_type(value: str) -> ReceiptType:
+    membership_fee = False
+    electricity = False
+    losses = False
+    consumption = False
+    counter_type = 0
+
+    for v in value:
+        if len(re.findall(r'{}'.format('взнос'), v.lower())) > 0:
+            membership_fee = True
+
+        if len(re.findall(r'{}'.format('член'), v.lower())) > 0:
+            membership_fee = True
+
+        if len(re.findall(r'{}'.format('потери'), v.lower())) > 0:
+            losses = True
+
+        if len(re.findall(r'{}'.format('15проц'), v.lower())) > 0:
+            losses = True
+
+        if len(re.findall(r'{}'.format('15%'), v.lower())) > 0:
+            losses = True
+
+        if len(re.findall(r'{}'.format('Т1'), v)) > 0:
+            electricity = True
+
+            if len(re.findall(r'{}'.format('Т2'), v)) > 0:
+                counter_type = 2
+            else:
+                counter_type = 1
+
+        if len(re.findall(r'{}'.format('расход'), v.lower())) > 0:
+            consumption = True
+
+    dict_result = dict(membership_fee=membership_fee, electricity=electricity, losses=losses, consumption=consumption)
+
+    if len([dict_result for k in dict_result.keys() if dict_result.get(k)]) == 1:
+        print([k for k in dict_result.keys() if dict_result.get(k)][0], '<<<')
+        return ReceiptType(service_name=[k for k in dict_result.keys() if dict_result.get(k)][0],
+                           counter_type=counter_type)
+
+
+def get_consumption_with_counter_type(counter_type: int, value: str, current_sum: str,
+                                      current_tariff: Dict[str, Any]) -> ConsumptionResp:
     if counter_type == 1:
         print('##############################################1')
 
@@ -749,7 +797,7 @@ def get_consumption_with_counter_type(counter_type: int, value: str, current_sum
         if losses_sum_str in re.findall('\d+', value):
             return ConsumptionResp(r1=Decimal(losses_sum_str), r2=None, ok=True)
         print('##############################################2')
-        #print(value.split(' '), '<<<counter_type')
+        # print(value.split(' '), '<<<counter_type')
         return ConsumptionResp(r1=None, r2=None, ok=False)
     else:
         r1 = None
@@ -771,7 +819,6 @@ def get_consumption_with_counter_type(counter_type: int, value: str, current_sum
             else:
                 found = False
 
-
     try:
         r1value = Decimal(r1)
         r2value = Decimal(r2)
@@ -791,13 +838,51 @@ def get_counter_type(value: str):
 
 
 def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-    #print(sreets_str)
+    params = value.split(' ')
+    street_numer = None
+    house_number = None
 
-    for param in value.split(';'):
+    for param in params:
+        sn = dict_streets.get(param.lower())
+        if sn:
+            street_numer = sn
+
+        if street_numer and house_number == None:
+            if len(param) > 0:
+                if param[0] == '№':
+                    try:
+                        house_number = str(int(param[1:]))
+                    except ValueError:
+                        pass
+                else:
+                    try:
+                        house_number = str(int(param))
+                    except ValueError:
+                        pass
+        else:
+            pass
+
+    if street_numer and house_number:
+        payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_numer, house_number)
+        return payer_id
+
+
+def old_make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
+    print('make_payer_id1')
+    print(value)
+    print(value.split(';'))
+    print('make_payer_id2')
+
+    if len(re.findall(r';', value)) > 0:
+        params = value.split(';')
+    else:
+        params = value.split(' ')
+
+    for param in params:
         result = re.findall(r'{}'.format(param.split(' ')[0].lower()), sreets_str.lower())
         if len(result) > 0:
             payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
-                                     dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
+                                         dict_streets.get(param.split(' ')[0].lower()), param.split(' ')[1])
             return payer_id
         else:
             street_found = None
@@ -808,7 +893,7 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
 
                         try:
                             payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
-                                                     dict_streets.get(street_found), str(int(param[1:])))
+                                                         dict_streets.get(street_found), str(int(param[1:])))
                             return payer_id
                         except ValueError:
                             break
@@ -820,13 +905,14 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
                 except error:
                     pass
 
+
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[RawReceiptCheck]:
-    import codecs
+    # import codecs
 
-    # f = codecs.open('/home/tram/PycharmProjects/base_register_back/Statement_20210101-example.csv', 'r', 'cp1251')
+    # f = codecs.open('/home/tram/PycharmProjects/base_register_back/parser-example.csv', 'r', 'cp1251')
     # u = f.read()  # now the contents have been transformed to a Unicode string
-    # out = codecs.open('e.csv', 'w', 'utf-8')
+    # out = codecs.open('ezz.csv', 'w', 'utf-8')
     # out.write(u)
 
     dict_streets = dict()
@@ -838,7 +924,6 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[
     for street in r.json().get('sntList')[0].get('streetList'):
         dict_streets.update({street.get('strName').lower(): street.get('strID')})
 
-
     sreets_str = ''.join([street.get('strName') for street in r.json().get('sntList')[0].get('streetList')])
 
     r = requests.get(remote_service_config.default_data_url)
@@ -846,7 +931,7 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
     raw_receipt_check_list = []
 
-    read_file_name = 'e.csv'
+    read_file_name = 'ezz.csv'
 
     if input_row:
         with open('testing_data.csv', 'w', newline='') as file:
@@ -858,8 +943,8 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[
         reader = csv.reader(File)
         rc = 1
         for row in reader:
-            print('ROW', ' '.join(row))
-            payment_no_double_destination = False
+            # print('ROW', ' '.join(row))
+
             payer_id = make_payer_id(' '.join(row), sreets_str, alias, dict_streets)
             value_str = ' '.join(row)
             chack_sum = False
@@ -872,9 +957,9 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[
 
                 if param[:4] == 'СУМ:':
 
-
                     if counter_type > 0:
-                        consumptions = get_consumption_with_counter_type(counter_type, value_str, param[4:], current_tariff)
+                        consumptions = get_consumption_with_counter_type(counter_type, value_str, param[4:],
+                                                                         current_tariff)
 
                         if consumptions.ok:
                             if counter_type == 1:
@@ -903,23 +988,18 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None) -> List[
                     else:
                         pass
 
-
-
-
-
-
             payment_destination = payment_destination_checker(value_str)
             payment_no_double_destination = payment_no_double_destination_checker(value_str)
-            #chack_sum = False
+            # chack_sum = False
 
-
+            receipt_type = get_receipt_type(row)
 
             if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
-                                                              needHandApprove=False))
+                                                              needHandApprove=False, receipt_type=receipt_type))
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
-                                                              needHandApprove=True))
+                                                              needHandApprove=True, receipt_type=receipt_type))
 
             rc += 1
 
