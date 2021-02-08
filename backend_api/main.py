@@ -14,7 +14,8 @@ origins = [
     'http://localhost:4200',
     'https://receipts.ecom.net.ua',
     'http://130.193.59.212',
-    'http://84.201.142.192'
+    'http://84.201.142.192',
+    'https://auditsnt.ru'
 ]
 app.add_middleware(
     CORSMiddleware,
