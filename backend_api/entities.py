@@ -9,11 +9,13 @@ class PayStatus(str, Enum):
     new = 'new'
     paid = 'paid'
 
+
 class Services(str, Enum):
     electricity = 'electricity'
     losses = 'losses'
     membership_fee = 'membership_fee'
     consumption = 'consumption'
+
 
 class ReceiptEntity(BaseModel):
     name: str
@@ -42,6 +44,7 @@ class ReceiptEntity(BaseModel):
     counter_image_id: Optional[str]
     alias: Optional[str]
 
+
 class PersonalInfoEntity(BaseModel):
     snt_alias: str
     street_name: str
@@ -49,9 +52,11 @@ class PersonalInfoEntity(BaseModel):
     numsite: str
     phone: str
 
+
 class ListResponse(BaseModel):
     items: List[BaseModel]
     count: int
+
 
 class OldReceiptEntity(BaseModel):
     qr_string: str
@@ -81,3 +86,8 @@ class OldReceiptEntity(BaseModel):
     t1_current: Optional[str]
     t2_paid: Optional[str]
     t2_current: Optional[str]
+
+
+class ReceiptType(BaseModel):
+    service_name: Optional[Services]
+    counter_type: Optional[int]
