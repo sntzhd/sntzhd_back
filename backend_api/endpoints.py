@@ -1118,10 +1118,11 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
 
 
 @router.post('parser-1c')
-async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[RawReceiptCheck]:
+async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[Any]:
     dict_streets = dict()
     paid_sum = None
     raw_receipt_check_list = []
+    undefound_clients = []
 
     async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
         content = await file.read()
@@ -1164,6 +1165,7 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                 #print(line[18:])
                 payer_id = make_payer_id_by_1c(line, alias, dict_streets)
                 if payer_id == None:
+                    undefound_clients.append(line)
                     continue
 
                 receipt_type = get_receipt_type_by_1c(line)
@@ -1180,7 +1182,7 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
                                             needHandApprove=True, receipt_type=receipt_type))
 
-    return raw_receipt_check_list
+    return [raw_receipt_check_list, undefound_clients]
 
 
 
