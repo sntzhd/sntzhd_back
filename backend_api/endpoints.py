@@ -21,6 +21,7 @@ import json
 import re
 from decimal import Decimal, ROUND_FLOOR
 import csv
+import aiofiles
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
@@ -210,9 +211,6 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(int((result_sum * 100)), paym_period, payer_id)
 
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
-    print('QRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQR')
-    print(qr_string)
-    print('QRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQR')
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
@@ -1015,7 +1013,7 @@ def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[st
 
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[RawReceiptCheck]:
-    import aiofiles
+
 
     async with aiofiles.open('BBBB.csv', 'wb') as out_file:
         content = await file.read()  # async read
@@ -1125,6 +1123,11 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     paid_sum = None
     raw_receipt_check_list = []
 
+    async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
+        content = await file.read()
+        await out_file.write(content)
+
+
     r = requests.get(remote_service_config.default_data_url)
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
 
@@ -1135,7 +1138,7 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     for street in r.json().get('sntList')[0].get('streetList'):
         dict_streets.update({street.get('strName').lower(): street.get('strID')})
 
-    f = open('1c_document_utf8.txt')
+    f = open('1c_document_utfSAVE.txt')
 
     doc_dict = dict()
     is_doc = False
