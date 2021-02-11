@@ -730,6 +730,7 @@ class RawReceiptCheck(BaseModel):
     payer_id: Optional[str]
     needHandApprove: bool
     receipt_type: Optional[ReceiptType]
+    pay_sum: str
 
 
 class ConsumptionResp(BaseModel):
@@ -1123,10 +1124,10 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
 
             if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
-                                                              needHandApprove=False, receipt_type=receipt_type))
+                                                              needHandApprove=False, receipt_type=receipt_type), pay_sum=pay_sum)
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
-                                                              needHandApprove=True, receipt_type=receipt_type))
+                                                              needHandApprove=True, receipt_type=receipt_type), pay_sum=pay_sum)
 
             rc += 1
 
