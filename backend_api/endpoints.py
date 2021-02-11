@@ -986,6 +986,21 @@ def perhaps_house_number(value: str, sreet_name: str):
                         pass
 
 
+    #print('comma_params NO', space_params)
+
+    if len(space_params) == 1:
+        if len(space_params[0].split(',')) == 1:
+            return space_params[0].split(',')[0].lower().split(sreet_name)[1]
+            print('ONE', space_params[0].split(',')[0].lower().split(sreet_name)[1])
+        if len(space_params[0].split(',')) == 2:
+            try:
+                return int(space_params[0].split(',')[1])
+            except ValueError:
+                print('TWO', space_params[0].split(',')[1])
+
+        #print('comma_params NO', space_params)
+
+
 
 
 
@@ -1010,6 +1025,7 @@ def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[st
     if street_numer and house_number:
         payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_numer, house_number)
         return payer_id
+
 
 @router.post('csv-parser')
 async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[RawReceiptCheck]:
@@ -1117,12 +1133,20 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
     return raw_receipt_check_list
 
 
+class RespChack1c(BaseModel):
+    raw_receipt_check_list: List[RawReceiptCheck]
+    undefound_clients: List[str]
+    all_rows_count: int
+    chacking_rows_count: int
+
 @router.post('parser-1c')
-async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[Any]:
+async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
     paid_sum = None
     raw_receipt_check_list = []
     undefound_clients = []
+    all_rows_count = 0
+    chacking_rows_count = 0
 
     async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
         content = await file.read()
@@ -1156,7 +1180,6 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
             is_doc = False
 
 
-
         if is_doc:
             if line[:5] == 'Сумма':
                 paid_sum = Decimal(line[6:])
@@ -1164,9 +1187,14 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
             if line[:17] == 'НазначениеПлатежа':
                 #print(line[18:])
                 payer_id = make_payer_id_by_1c(line, alias, dict_streets)
+
+                all_rows_count += 1
+
                 if payer_id == None:
                     undefound_clients.append(line)
                     continue
+
+                chacking_rows_count += 1
 
                 receipt_type = get_receipt_type_by_1c(line)
 
@@ -1182,7 +1210,5 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
                                             needHandApprove=True, receipt_type=receipt_type))
 
-    return [raw_receipt_check_list, undefound_clients]
-
-
-
+    return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
+                       all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count)
