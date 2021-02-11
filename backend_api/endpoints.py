@@ -992,14 +992,31 @@ def perhaps_house_number(value: str, sreet_name: str):
     if len(space_params) == 1:
         if len(space_params[0].split(',')) == 1:
             return space_params[0].split(',')[0].lower().split(sreet_name)[1]
-            print('ONE', space_params[0].split(',')[0].lower().split(sreet_name)[1])
         if len(space_params[0].split(',')) == 2:
             try:
                 return int(space_params[0].split(',')[1])
             except ValueError:
-                print('TWO', space_params[0].split(',')[1])
+                if len(re.findall('\d+[а-яё]{1}', space_params[0].split(',')[1].lower())) > 0:
+                    return re.findall('\d+[а-яё]{1}', space_params[0].split(',')[1].lower())[0]
+                else:
+                    if len(re.findall('\d+', space_params[0].split(',')[1].lower())) > 0:
+                        return re.findall('\d+', space_params[0].split(',')[1].lower())[0]
 
-        #print('comma_params NO', space_params)
+    is_street = False
+    for v in value.split(' '):
+        if len(re.findall(r'{}'.format(sreet_name), v.lower())) > 0:
+            is_street = True
+
+        if is_street:
+            if len(re.findall('\d+[а-яё]{1}', v.lower())) > 0:
+                is_street = False
+                return re.findall('\d+[а-яё]{1}', v.lower())[0]
+            else:
+                if len(re.findall('\d+', v.lower())) > 0:
+                    is_street = False
+                    return re.findall('\d+', v.lower())[0]
+
+    print('DDDDDDDDDDDDDDDDDDD')
 
 
 
