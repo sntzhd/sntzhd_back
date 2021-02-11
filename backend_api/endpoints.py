@@ -730,7 +730,7 @@ class RawReceiptCheck(BaseModel):
     payer_id: Optional[str]
     needHandApprove: bool
     receipt_type: Optional[ReceiptType]
-    pay_sum: str
+    paid_sum: str
 
 
 class ConsumptionResp(BaseModel):
@@ -1124,10 +1124,10 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
 
             if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
-                                                              needHandApprove=False, receipt_type=receipt_type), pay_sum=pay_sum)
+                                                              needHandApprove=False, receipt_type=receipt_type, paid_sum=pay_sum))
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
-                                                              needHandApprove=True, receipt_type=receipt_type), pay_sum=pay_sum)
+                                                              needHandApprove=True, receipt_type=receipt_type, paid_sum=pay_sum))
 
             rc += 1
 
@@ -1205,11 +1205,11 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                     if check_sum_status:
                         raw_receipt_check_list.append(
                             RawReceiptCheck(title=line, test_result=True, payer_id=payer_id,
-                                            needHandApprove=False, receipt_type=receipt_type))
+                                            needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum))
                     else:
                         raw_receipt_check_list.append(
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                            needHandApprove=True, receipt_type=receipt_type))
+                                            needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
 
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count)
