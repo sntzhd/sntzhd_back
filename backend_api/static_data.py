@@ -5,3 +5,7 @@ sntzhd = dict(name='СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"', bank_name='Ф�
 aliases = dict(sntzhd=sntzhd)
 
 url_streets = 'https://next.json-generator.com/api/json/get/N1kZKVgpK'
+
+street_aliases = {
+    'вишневая': ['вишнёвая']
+}

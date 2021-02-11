@@ -38,6 +38,7 @@ from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
 from config import secret_config
 from backend_api.parser_utils import check_sum
+from backend_api.static_data import street_aliases
 
 router = APIRouter()
 
@@ -234,9 +235,6 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
         sum_rub = str(receipt.result_sum)
         sum_cop = '00'
 
-    print('img_urlimg_urlimg_urlimg_url')
-    print(img_url)
-    print('img_urlimg_urlimg_urlimg_url')
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=t1_expense, t1_sum=t1_sum,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
@@ -745,7 +743,6 @@ def get_receipt_type(value: str) -> ReceiptType:
     losses = False
     consumption = False
     counter_type = 0
-    print(value)
 
     for v in value:
         if len(re.findall(r'{}'.format('взнос'), v.lower())) > 0:
@@ -825,7 +822,6 @@ def get_receipt_type_by_1c(value: str) -> ReceiptType:
 def get_consumption_with_counter_type(counter_type: int, value: str, current_sum: str,
                                       current_tariff: Dict[str, Any]) -> ConsumptionResp:
     if counter_type == 1:
-        print('##############################################1')
 
         electricity_sum = Decimal(current_sum) / Decimal(current_tariff.get('t0_tariff'))
         losses_sum = (Decimal(current_sum) / Decimal(current_tariff.get('t0_tariff'))) * Decimal('0.15')
@@ -833,20 +829,13 @@ def get_consumption_with_counter_type(counter_type: int, value: str, current_sum
         electricity_sum_str = str(int(electricity_sum))
         losses_sum_str = str(int(losses_sum))
 
-        print('electricity_sum >>>', electricity_sum_str)
-        print('losses_sum >>>', losses_sum_str)
-
-        print(len(re.findall(r'{}'.format(electricity_sum_str), value)))
-        print(len(re.findall(r'{}'.format(losses_sum_str), value)))
-        print(value.split(' '))
 
         if electricity_sum_str in re.findall('\d+', value):
             return ConsumptionResp(r1=Decimal(electricity_sum_str), r2=None, ok=True)
 
         if losses_sum_str in re.findall('\d+', value):
             return ConsumptionResp(r1=Decimal(losses_sum_str), r2=None, ok=True)
-        print('##############################################2')
-        # print(value.split(' '), '<<<counter_type')
+
         return ConsumptionResp(r1=None, r2=None, ok=False)
     else:
         r1 = None
@@ -917,10 +906,6 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
 
 
 def old_make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-    print('make_payer_id1')
-    print(value)
-    print(value.split(';'))
-    print('make_payer_id2')
 
     if len(re.findall(r';', value)) > 0:
         params = value.split(';')
@@ -1020,7 +1005,8 @@ def perhaps_house_number(value: str, sreet_name: str):
 
 
 
-
+def get_street_by_alias(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
+    print(value, 'get_street_by_alias')
 
 def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
     params = value.split(';')
@@ -1033,16 +1019,15 @@ def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[st
         street = get_coincidence_street(param, dict_streets)
         if street:
             street_numer = street.get('street_number')
-            #print('FFFFFFFFFFFFFFFFFF1')
-            #print(value)
-            #print(street.get('street_name'))
             house_number = perhaps_house_number(param, street.get('street_name'))
-            #print('FFFFFFFFFFFFFFFFF2')
             break
 
     if street_numer and house_number:
         payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_numer, house_number)
         return payer_id
+
+    get_street_by_alias(value, alias, dict_streets)
+
 
 
 @router.post('csv-parser')
@@ -1161,6 +1146,7 @@ class RespChack1c(BaseModel):
     all_rows_count: int
     chacking_rows_count: int
     sum_streets: List[StreetSumResp]
+    all_sum: Decimal
 
 @router.post('parser-1c')
 async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
@@ -1171,6 +1157,8 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     undefound_clients = []
     all_rows_count = 0
     chacking_rows_count = 0
+    all_sum = 0
+    street_sums_dict = {'Другие': 0}
 
     async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
         content = await file.read()
@@ -1215,19 +1203,16 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
             if line[:5] == 'Сумма':
                 paid_sum = Decimal(line[6:])
+                all_sum += paid_sum
 
             if line[:17] == 'НазначениеПлатежа':
-                #print(line[18:])
                 payer_id = make_payer_id_by_1c(line, alias, dict_streets)
 
                 all_rows_count += 1
 
                 if payer_id == None:
-                    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFF')
-                    print(line)
-                    print(current_paeer_text)
-                    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFF')
                     undefound_clients.append(line)
+                    street_sums_dict['Другие'] += Decimal(paid_sum)
                     continue
 
                 chacking_rows_count += 1
@@ -1246,11 +1231,10 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
                                             needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
 
-    street_sums_dict = dict()
+
     print(key_id_dict_streets)
 
     for raw_receipt_check in raw_receipt_check_list:
-        print(raw_receipt_check.paid_sum)
         street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
         if street_sums_dict.get(street_name):
             street_sum_value = street_sums_dict.get(street_name)
@@ -1260,5 +1244,5 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
 
     sum_streets = [StreetSumResp(street_name=k, street_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
-    return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
+    return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients, all_sum=all_sum,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets)
