@@ -1151,15 +1151,21 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
     return raw_receipt_check_list
 
 
+class StreetSumResp(BaseModel):
+    street_name: str
+    street_sum: Decimal
+
 class RespChack1c(BaseModel):
     raw_receipt_check_list: List[RawReceiptCheck]
     undefound_clients: List[str]
     all_rows_count: int
     chacking_rows_count: int
+    sum_streets: List[StreetSumResp]
 
 @router.post('parser-1c')
 async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
+    key_id_dict_streets = dict()
     paid_sum = None
     raw_receipt_check_list = []
     undefound_clients = []
@@ -1179,12 +1185,17 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     r = requests.get(remote_service_config.street_list_url)
 
     for street in r.json().get('sntList')[0].get('streetList'):
-        dict_streets.update({street.get('strName').lower(): street.get('strID')})
+        if street.get('strName'):
+            key_id_dict_streets.update({street.get('strID'): street.get('strName').lower()})
+            dict_streets.update({street.get('strName').lower(): street.get('strID')})
 
     f = open('1c_document_utfSAVE.txt')
 
     doc_dict = dict()
     is_doc = False
+
+
+    current_paeer_text = None
 
     for line in f:
         result = re.findall(r'СекцияДокумент', line)
@@ -1199,6 +1210,9 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
 
         if is_doc:
+            if line[:11] == 'Плательщик1':
+                current_paeer_text = line[12:]
+
             if line[:5] == 'Сумма':
                 paid_sum = Decimal(line[6:])
 
@@ -1209,6 +1223,10 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                 all_rows_count += 1
 
                 if payer_id == None:
+                    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFF')
+                    print(line)
+                    print(current_paeer_text)
+                    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFF')
                     undefound_clients.append(line)
                     continue
 
@@ -1228,5 +1246,19 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
                                             needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
 
+    street_sums_dict = dict()
+    print(key_id_dict_streets)
+
+    for raw_receipt_check in raw_receipt_check_list:
+        print(raw_receipt_check.paid_sum)
+        street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
+        if street_sums_dict.get(street_name):
+            street_sum_value = street_sums_dict.get(street_name)
+            street_sums_dict.update({street_name: (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
+        else:
+            street_sums_dict.update({street_name: Decimal(raw_receipt_check.paid_sum)})
+
+
+    sum_streets = [StreetSumResp(street_name=k, street_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
-                       all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count)
+                       all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets)
