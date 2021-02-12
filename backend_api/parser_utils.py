@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_FLOOR
+from decimal import Decimal, ROUND_FLOOR, InvalidOperation
 import re
 
 from backend_api.entities import ReceiptType
@@ -36,9 +36,16 @@ def check_sum(paid_sum: Decimal, value: str, receipt_type: ReceiptType, current_
                     else:
                         if key_word_found:
                             if r1 == None:
-                                r1 = Decimal(v)
+                                print(v, '<--------------------------------')
+                                try:
+                                    r1 = Decimal(v)
+                                except InvalidOperation:
+                                    r1 = Decimal('0.00')
                             else:
-                                r2 = Decimal(v)
+                                try:
+                                    r2 = Decimal(v)
+                                except InvalidOperation:
+                                    r1 = Decimal('0.00')
                             key_word_found = False
 
 
