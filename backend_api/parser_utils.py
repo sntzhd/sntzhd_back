@@ -1,5 +1,6 @@
 from decimal import Decimal, ROUND_FLOOR, InvalidOperation
 import re
+import requests
 
 from backend_api.entities import ReceiptType
 
@@ -75,3 +76,8 @@ def check_sum(paid_sum: Decimal, value: str, receipt_type: ReceiptType, current_
                 if result_sum.quantize(Decimal("1.00"), ROUND_FLOOR) == paid_sum:
                     return True
 
+
+
+def get_addresses_by_hash():
+    r = requests.get('https://next.json-generator.com/api/json/get/NJire3gbc')
+    return r.json()

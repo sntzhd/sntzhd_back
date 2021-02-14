@@ -38,7 +38,7 @@ from backend_api.utils import create_id
 from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
 from config import secret_config
-from backend_api.parser_utils import check_sum
+from backend_api.parser_utils import check_sum, get_addresses_by_hash
 from backend_api.static_data import street_aliases
 
 router = APIRouter()
@@ -158,9 +158,10 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     if receipts.count > 0:
         if receipt.t1_current <= receipts.items[0].t1_current:
-            raise HTTPException(status_code=500,
-                                detail='Ошибка # Не верное значение. Значение прошлого периода {} кВт'.format(
-                                    receipts.items[0].rashod_t1))
+            pass
+            #raise HTTPException(status_code=500,
+            #                    detail='Ошибка # Не верное значение. Значение прошлого периода {} кВт'.format(
+            #                        receipts.items[0].rashod_t1))
 
         if receipt.counter_type == 1:
             t1_sum = receipt.rashod_t1 * float(current_tariff.get('t0_tariff'))
@@ -609,7 +610,6 @@ async def add_delegate_start(rq: AddDelegateStartRQ, user=Depends(fastapi_users.
     else:
         p_info = personal_infos.items[0]
         code = ''.join([choice(string.digits) for _ in range(6)])
-        print(code)
         id_ = await delegate_event_dao.create(DelegateEventDB(user_id=user.id, delegated_id=p_info.user_id, code=code))
         return id_
 
@@ -625,8 +625,7 @@ async def add_delegate_end(rq: AddDelegateEndRQ, user=Depends(fastapi_users.get_
             await delegate_dao.create(DelegateDB(user_id=user.id, client_ids=[delegate_events.items[0].delegated_id]))
         else:
             delegate = delegates.items[0]
-            print(delegate_events.items[0].delegated_id)
-            print(delegate.client_ids)
+
             if delegate_events.items[0].delegated_id not in delegate.client_ids:
                 delegate.client_ids.append(delegate_events.items[0].delegated_id)
                 await delegate_dao.update(delegate)
@@ -635,7 +634,6 @@ async def add_delegate_end(rq: AddDelegateEndRQ, user=Depends(fastapi_users.get_
 @router.get('/delegates')
 async def delegates(user=Depends(fastapi_users.get_current_user)) -> List[PayerInfo]:
     delegates = await delegate_dao.list(0, 1, dict(user_id=user.id))
-    print(delegates)
 
     if delegates.count == 0:
         raise HTTPException(status_code=500, detail='Не делегат')
@@ -1002,12 +1000,11 @@ def perhaps_house_number(value: str, sreet_name: str):
                     is_street = False
                     return re.findall('\d+', v.lower())[0]
 
-    print('DDDDDDDDDDDDDDDDDDD')
 
 
 
 def get_street_by_alias(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-    print(value, 'get_street_by_alias')
+    pass
 
 def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
     params = value.split(';')
@@ -1168,6 +1165,8 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     all_sum = 0
     street_sums_dict = {'Другие': 0}
 
+    hash_addresses = get_addresses_by_hash()
+
     async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
         content = await file.read()
         await out_file.write(content)
@@ -1208,6 +1207,8 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
         if is_doc:
             if line[:11] == 'Плательщик1':
                 current_paeer_text = line[12:]
+                if len(re.findall(r'СНТ', current_paeer_text)) > 0:
+                    continue
 
             if line[:5] == 'Сумма':
                 paid_sum = Decimal(line[6:])
@@ -1219,13 +1220,23 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                 all_rows_count += 1
 
                 if payer_id == None:
-                    undefound_clients.append(UndefoundClient(title=line, paid_sum=paid_sum, payer_id=hashlib.sha256(current_paeer_text.encode('utf-8')).hexdigest()))
-                    street_sums_dict['Другие'] += Decimal(paid_sum)
+                    for hash_address in hash_addresses:
+                        if hash_address.get('payer_id') == hashlib.sha256(current_paeer_text.encode('utf-8')).hexdigest():
+                            try:
+                                street_name, house_number = hash_address.get('payer_adress').split(',')
 
-                    #raw_receipt_check_list.append(
-                    #    RawReceiptCheck(title=line, test_result=False, payer_id=hashlib.sha256(current_paeer_text.encode('utf-8')).hexdigest(),
-                    #                    needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
-                    continue
+                                payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], dict_streets.get(street_name.lower()), house_number.replace(' ', ''))
+
+                            except ValueError:
+                                undefound_clients.append(UndefoundClient(title=line, paid_sum=paid_sum,
+                                                                         payer_id=hashlib.sha256(
+                                                                             current_paeer_text.encode(
+                                                                                 'utf-8')).hexdigest()))
+                                street_sums_dict['Другие'] += Decimal(paid_sum)
+                            continue
+                    if payer_id == None:
+                        continue
+
 
                 chacking_rows_count += 1
 
