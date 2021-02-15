@@ -682,8 +682,17 @@ async def add_membership_fee(receipt: MembershipReceiptEntity):
     if alias == None:
         raise HTTPException(status_code=500, detail='Не верный alias')
 
+    receipt.name = alias.get('name')
+    receipt.bank_name = alias.get('bank_name')
+    receipt.bic = alias.get('bic')
+    receipt.corresp_acc = alias.get('corresp_acc')
+    receipt.kpp = alias.get('kpp')
+    receipt.payee_inn = alias.get('payee_inn')
+    receipt.personal_acc = alias.get('personal_acc')
+
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
+
 
     street_id = get_street_id(receipt)
 
