@@ -51,6 +51,11 @@ class PersonalInfoEntity(BaseModel):
     payer_id: str
     numsite: str
     phone: str
+    name: str
+    lastname: str
+    grandname: str
+    street: str
+    home: str
 
 
 class ListResponse(BaseModel):
