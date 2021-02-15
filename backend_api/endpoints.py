@@ -1137,7 +1137,7 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
                                                               needHandApprove=False, receipt_type=receipt_type, paid_sum=pay_sum))
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
-                                                              needHandApprove=True, receipt_type=receipt_type, paid_sum=pay_sum))
+                                                              needHandApprove=True, paid_sum=pay_sum))
 
             rc += 1
 
@@ -1160,6 +1160,7 @@ class RespChack1c(BaseModel):
     chacking_rows_count: int
     sum_streets: List[StreetSumResp]
     all_sum: Decimal
+    sum_streets_result: Decimal
 
 
 
@@ -1242,9 +1243,10 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                                                                          payer_id=hashlib.sha256(
                                                                              current_paeer_text.encode(
                                                                                  'utf-8')).hexdigest()))
-                                street_sums_dict['Другие'] += Decimal(paid_sum)
+                                #street_sums_dict['Другие'] += Decimal(paid_sum)
                             continue
                     if payer_id == None:
+                        street_sums_dict['Другие'] += Decimal(paid_sum)
                         continue
 
 
@@ -1263,17 +1265,26 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                         raw_receipt_check_list.append(
                             RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
                                             needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
+                else:
+                    try:
+                        int(payer_id[5:9])
+                        raw_receipt_check_list.append(
+                            RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
+                                            needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
+                    except ValueError:
+                        pass
+
 
 
 
 
     for raw_receipt_check in raw_receipt_check_list:
         street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
-        if street_sums_dict.get(street_name):
-            street_sum_value = street_sums_dict.get(street_name)
-            street_sums_dict.update({street_name: (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
+        if street_sums_dict.get(street_name.lower()):
+            street_sum_value = street_sums_dict.get(street_name.lower())
+            street_sums_dict.update({street_name.lower(): (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
         else:
-            street_sums_dict.update({street_name: Decimal(raw_receipt_check.paid_sum)})
+            street_sums_dict.update({street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
 
 
@@ -1285,6 +1296,7 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
         raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
                         needHandApprove=True, receipt_type=receipt_type, paid_sum=uc.paid_sum))
 
-
+    sum_streets_result = sum(sum_street.street_sum for sum_street in sum_streets)
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients, all_sum=all_sum,
-                       all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets)
+                       all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
+                       sum_streets_result=sum_streets_result)
