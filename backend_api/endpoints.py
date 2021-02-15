@@ -362,8 +362,8 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 
     if personal_infos.count == 0:
         phone = personal_info.phone
-        if personal_info.phone[0] == '+':
-            phone = personal_info.phone[1:]
+        #if personal_info.phone[0] == '+':
+        #    phone = personal_info.phone[1:]
 
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(phone), name=personal_info.name,
