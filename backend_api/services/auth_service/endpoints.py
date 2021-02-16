@@ -54,6 +54,7 @@ class UserDB(User, models.BaseUserDB):
     home: str
     phone: str
     payer_id: str
+    is_delegate: bool
 
 
 def on_after_register(user: UserDB, request: Request):

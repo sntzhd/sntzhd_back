@@ -99,8 +99,13 @@ class CreateReceiptResponse(BaseModel):
     alias_info: AliasInfoResp
 
 
+
 el_text = 'Оплата электроэнергии по договору №10177'
 lose_text = 'ПОТЕРИ 15% СОГЛАСНО ПРОТОКОЛУ №9 ОТ 28.03.2015Г'
+
+
+def delegate_confirmation_rights():
+    pass
 
 
 @router.post('/create-receipt', description='Создание квитанции')
@@ -159,7 +164,7 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     if receipts.count > 0:
         if receipt.t1_current <= receipts.items[0].t1_current:
             pass
-            #raise HTTPException(status_code=500,
+            # raise HTTPException(status_code=500,
             #                    detail='Ошибка # Не верное значение. Значение прошлого периода {} кВт'.format(
             #                        receipts.items[0].rashod_t1))
 
@@ -204,8 +209,6 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
-
-
 
     dt = datetime.datetime.now()
 
@@ -360,16 +363,19 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, personal_info.numsite)
     personal_info.payer_id = payer_id
 
+    print(personal_infos, '<<<<<<<<<<<<<<<<<')
+
     if personal_infos.count == 0:
         phone = personal_info.phone
-        #if personal_info.phone[0] == '+':
+        # if personal_info.phone[0] == '+':
         #    phone = personal_info.phone[1:]
 
         user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(phone), name=personal_info.name,
                                                  lastname=personal_info.lastname, grandname=personal_info.grandname,
                                                  city='', street=personal_info.street, home=personal_info.home,
-                                                 phone=personal_info.phone, payer_id=payer_id))
+                                                 phone=personal_info.phone, payer_id=payer_id,
+                                                 is_delegate=personal_info.is_delegate))
 
         if personal_info.phone[0] == '+':
             personal_info.phone = personal_info.phone[1:]
@@ -694,7 +700,6 @@ async def add_membership_fee(receipt: MembershipReceiptEntity):
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
 
-
     street_id = get_street_id(receipt)
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
@@ -726,9 +731,6 @@ async def add_membership_fee(receipt: MembershipReceiptEntity):
                                                                   receipt.created_date.year),
                                  formating_sum='{} руб {} коп'.format(2500, '00'),
                                  alias_info=AliasInfoResp(**alias))
-
-
-
 
 
 class RawReceiptCheck(BaseModel):
@@ -818,7 +820,7 @@ def get_receipt_type_by_1c(value: str) -> ReceiptType:
         else:
             counter_type = 1
 
-    #if len(re.findall(r'{}'.format('расход'), v.lower())) > 0:
+    # if len(re.findall(r'{}'.format('расход'), v.lower())) > 0:
     #    consumption = True
 
     dict_result = dict(membership_fee=membership_fee, electricity=electricity, losses=losses, consumption=consumption)
@@ -837,7 +839,6 @@ def get_consumption_with_counter_type(counter_type: int, value: str, current_sum
 
         electricity_sum_str = str(int(electricity_sum))
         losses_sum_str = str(int(losses_sum))
-
 
         if electricity_sum_str in re.findall('\d+', value):
             return ConsumptionResp(r1=Decimal(electricity_sum_str), r2=None, ok=True)
@@ -915,7 +916,6 @@ def make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_stree
 
 
 def old_make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
-
     if len(re.findall(r';', value)) > 0:
         params = value.split(';')
     else:
@@ -948,10 +948,12 @@ def old_make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_s
                 except error:
                     pass
 
+
 def get_coincidence_street(param: str, dict_streets: Dict[str, Any]):
     for k in dict_streets.keys():
         if len(re.findall(r'{}'.format(k), param.lower())) > 0:
             return dict(street_name=k, street_number=dict_streets.get(k))
+
 
 def perhaps_house_number(value: str, sreet_name: str):
     space_params = value.split(' ')
@@ -975,13 +977,12 @@ def perhaps_house_number(value: str, sreet_name: str):
                 if len(param.split(' ')) > 1:
                     try:
                         l = param.split(' ')
-                        v = [l[(len(l)-1)]]
+                        v = [l[(len(l) - 1)]]
                         return str(int(v[0]))
                     except ValueError:
                         pass
 
-
-    #print('comma_params NO', space_params)
+    # print('comma_params NO', space_params)
 
     if len(space_params) == 1:
         if len(space_params[0].split(',')) == 1:
@@ -1011,14 +1012,12 @@ def perhaps_house_number(value: str, sreet_name: str):
                     return re.findall('\d+', v.lower())[0]
 
 
-
-
 def get_street_by_alias(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
     pass
 
+
 def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[str, Any]):
     params = value.split(';')
-
 
     street_numer = None
     house_number = None
@@ -1037,11 +1036,9 @@ def make_payer_id_by_1c(value: str, alias: Dict[str, Any], dict_streets: Dict[st
     get_street_by_alias(value, alias, dict_streets)
 
 
-
 @router.post('csv-parser')
-async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[RawReceiptCheck]:
-
-
+async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> List[
+    RawReceiptCheck]:
     async with aiofiles.open('BBBB.csv', 'wb') as out_file:
         content = await file.read()  # async read
         await out_file.write(content)
@@ -1134,7 +1131,8 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
 
             if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
-                                                              needHandApprove=False, receipt_type=receipt_type, paid_sum=pay_sum))
+                                                              needHandApprove=False, receipt_type=receipt_type,
+                                                              paid_sum=pay_sum))
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
                                                               needHandApprove=True, paid_sum=pay_sum))
@@ -1148,10 +1146,12 @@ class StreetSumResp(BaseModel):
     street_name: str
     street_sum: Decimal
 
+
 class UndefoundClient(BaseModel):
     title: str
     payer_id: str
     paid_sum: str
+
 
 class RespChack1c(BaseModel):
     raw_receipt_check_list: List[RawReceiptCheck]
@@ -1161,7 +1161,8 @@ class RespChack1c(BaseModel):
     sum_streets: List[StreetSumResp]
     all_sum: Decimal
     sum_streets_result: Decimal
-
+    membership_fee_sum: Decimal
+    losses_sum: Decimal
 
 
 @router.post('parser-1c')
@@ -1182,7 +1183,6 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
         content = await file.read()
         await out_file.write(content)
 
-
     r = requests.get(remote_service_config.default_data_url)
     current_tariff = r.json().get('Kontragents')[0].get('2312088371').get('services')[0].get('tariffs')[-1]
 
@@ -1200,7 +1200,6 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     doc_dict = dict()
     is_doc = False
 
-
     current_paeer_text = None
 
     for line in f:
@@ -1213,7 +1212,6 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
         if len(result) > 0:
             is_doc = False
-
 
         if is_doc:
             if line[:11] == 'Плательщик1':
@@ -1232,23 +1230,25 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
                 if payer_id == None:
                     for hash_address in hash_addresses:
-                        if hash_address.get('payer_id') == hashlib.sha256(current_paeer_text.encode('utf-8')).hexdigest():
+                        if hash_address.get('payer_id') == hashlib.sha256(
+                                current_paeer_text.encode('utf-8')).hexdigest():
                             try:
                                 street_name, house_number = hash_address.get('payer_adress').split(',')
 
-                                payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], dict_streets.get(street_name.lower()), house_number.replace(' ', ''))
+                                payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8],
+                                                             dict_streets.get(street_name.lower()),
+                                                             house_number.replace(' ', ''))
 
                             except ValueError:
                                 undefound_clients.append(UndefoundClient(title=line, paid_sum=paid_sum,
                                                                          payer_id=hashlib.sha256(
                                                                              current_paeer_text.encode(
                                                                                  'utf-8')).hexdigest()))
-                                #street_sums_dict['Другие'] += Decimal(paid_sum)
+                                # street_sums_dict['Другие'] += Decimal(paid_sum)
                             continue
                     if payer_id == None:
                         street_sums_dict['Другие'] += Decimal(paid_sum)
                         continue
-
 
                 chacking_rows_count += 1
 
@@ -1274,10 +1274,6 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                     except ValueError:
                         pass
 
-
-
-
-
     for raw_receipt_check in raw_receipt_check_list:
         street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
         if street_sums_dict.get(street_name.lower()):
@@ -1286,17 +1282,24 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
         else:
             street_sums_dict.update({street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
-
-
-
     sum_streets = [StreetSumResp(street_name=k, street_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
-
 
     for uc in undefound_clients:
         raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
-                        needHandApprove=True, receipt_type=receipt_type, paid_sum=uc.paid_sum))
+                                                      needHandApprove=True, receipt_type=receipt_type,
+                                                      paid_sum=uc.paid_sum))
 
     sum_streets_result = sum(sum_street.street_sum for sum_street in sum_streets)
-    return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients, all_sum=all_sum,
+
+    for r in raw_receipt_check_list:
+        if r.receipt_type and r.receipt_type.service_name.value == 'membership_fee':
+            print(r)
+
+    membership_fee_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
+                              r.receipt_type and r.receipt_type.service_name.value == 'membership_fee'])
+    losses_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
+                  r.receipt_type and r.receipt_type.service_name.value == 'losses'])
+    return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
+                       all_sum=all_sum,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
-                       sum_streets_result=sum_streets_result)
+                       sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum, losses_sum=losses_sum)

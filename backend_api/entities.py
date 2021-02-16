@@ -56,6 +56,7 @@ class PersonalInfoEntity(BaseModel):
     grandname: str
     street: str
     home: str
+    is_delegate: bool
 
 
 class ListResponse(BaseModel):
