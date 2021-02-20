@@ -1,5 +1,5 @@
-from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO, IDelegateDAO, IDelegateEventDAO
-from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateDB, DelegateEventDB
+from backend_api.interfaces import IReceiptDAO, IPersonalInfoDAO, IDelegateDAO, IDelegateEventDAO, ICheckingNumberDAO
+from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateDB, DelegateEventDB, CheckingNumberDB
 from backend_api.db.motor.dao import MotorGenericDAO
 
 
@@ -21,3 +21,7 @@ class DelegateDAO(MotorGenericDAO, IDelegateDAO):
 class DelegateEventDAO(MotorGenericDAO, IDelegateEventDAO):
     def __init__(self):
         super().__init__('delegate_events', DelegateEventDB)
+
+class CheckingNumberDAO(MotorGenericDAO, ICheckingNumberDAO):
+    def __init__(self):
+        super().__init__('checking_numbers', CheckingNumberDB)

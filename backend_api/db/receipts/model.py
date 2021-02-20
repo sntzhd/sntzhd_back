@@ -59,10 +59,15 @@ class PersonalInfoDB(BaseDBModel):
 
 class DelegateDB(BaseDBModel):
     user_id: UUID4
-    client_ids: List[UUID4]
+    payer_ids: List[str]
 
 
 class DelegateEventDB(BaseDBModel):
     user_id: UUID4
     delegated_id: UUID4
     code: str
+
+
+class CheckingNumberDB(BaseDBModel):
+    value: str
+    payer_id: str

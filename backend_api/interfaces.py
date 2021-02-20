@@ -55,3 +55,6 @@ class IDelegateDAO(IGenericDAO):
 
 class IDelegateEventDAO(IGenericDAO):
     pass
+
+class ICheckingNumberDAO(IGenericDAO):
+    pass

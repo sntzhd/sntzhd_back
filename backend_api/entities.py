@@ -43,6 +43,7 @@ class ReceiptEntity(BaseModel):
     numsite: str
     counter_image_id: Optional[str]
     alias: Optional[str]
+    checking_number: Optional[str]
 
 
 class PersonalInfoEntity(BaseModel):
@@ -56,7 +57,7 @@ class PersonalInfoEntity(BaseModel):
     grandname: str
     street: str
     home: str
-    is_delegate: bool
+    is_delegate: Optional[bool]
 
 
 class ListResponse(BaseModel):

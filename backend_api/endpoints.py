@@ -26,9 +26,9 @@ import hashlib
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
-                                    IDelegateEventDAO)
+                                    IDelegateEventDAO, ICheckingNumberDAO)
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType
-from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB
+from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
@@ -52,6 +52,7 @@ bonus_acc_dao = instance(IBonusAccDAO)
 bonus_history_dao = instance(IBonusHistoryDAO)
 delegate_dao = instance(IDelegateDAO)
 delegate_event_dao = instance(IDelegateEventDAO)
+checking_number_dao = instance(ICheckingNumberDAO)
 
 response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankName', bic='BIC', corresp_acc='CorrespAcc',
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
@@ -103,13 +104,22 @@ class CreateReceiptResponse(BaseModel):
 el_text = 'Оплата электроэнергии по договору №10177'
 lose_text = 'ПОТЕРИ 15% СОГЛАСНО ПРОТОКОЛУ №9 ОТ 28.03.2015Г'
 
+class User(BaseModel):
+    id: UUID4
+    username: str
+    email: str
+    is_active: bool
+    is_superuser: bool
 
-def delegate_confirmation_rights():
-    pass
+
+@router.post('/delegate-confirmation-rights', description='Проверка прав делегата')
+async def delegate_confirmation_rights(receipt: ReceiptEntity) -> CreateReceiptResponse:
+    print(receipt)
 
 
 @router.post('/create-receipt', description='Создание квитанции')
-async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
+async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_users.get_optional_current_active_user)) -> CreateReceiptResponse:
+
     current_tariff = None
 
     alias = get_alias_info(receipt.alias)
@@ -128,6 +138,57 @@ async def create_receipt(receipt: ReceiptEntity) -> CreateReceiptResponse:
     #               street_id = street.get('strID')
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+
+
+    #print(payer_id, "FFFFFFFFFFFFFF")
+    #raise HTTPException(status_code=500, detail='Не верный alias')
+
+    old_receipts = await receipt_dao.list(0, 1, {'payer_id': payer_id})
+
+    #if user == None:
+    #    raise HTTPException(status_code=500, detail='must_login')
+
+    if old_receipts.count > 0:
+        print(old_receipts.items[0])
+
+        if receipt.checking_number:
+            checking_numbers = await checking_number_dao.list(0, 1, {'value': receipt.checking_number,
+                                                                     'payer_id': payer_id})
+            print('||||||||||||||||||||||||||||||||||||||||', user)
+            if user:
+                delegate_result = await delegate_dao.list(0, 1, {'user_id': user.id})
+
+                if delegate_result.count == 0:
+                    await delegate_dao.create(DelegateDB(user_id=user.id, payer_ids=[payer_id]))
+                else:
+                    if payer_id not in delegate_result.items[0].payer_ids:
+                        delegate_result.items[0].payer_ids.append(payer_id)
+                        await delegate_dao.update(delegate_result.items[0])
+                        print('UPDATE')
+                print('SAVE DELEGATE')
+
+            if checking_numbers.count == 0:
+                raise HTTPException(status_code=500, detail='Не верный код подтверждения')
+        else:
+
+            personal_info_list = await personal_info_dao.list(0, 1, {'payer_id': payer_id})
+
+
+            if user == None:
+                password = ''.join([choice(string.digits) for _ in range(6)])
+                print('CREATE checking_number', password)
+                await checking_number_dao.create(CheckingNumberDB(value=password, payer_id=payer_id))
+                raise HTTPException(status_code=500, detail='is_deligate')
+
+            if personal_info_list.count > 0:
+                if personal_info_list.items[0].user_id != user.id:
+                    delegate_result = await delegate_dao.list(0, 1, {'user_id': user.id})
+                    if payer_id not in delegate_result.items[0].payer_ids:
+                        password = ''.join([choice(string.digits) for _ in range(6)])
+                        print('CREATE checking_number', password)
+                        await checking_number_dao.create(CheckingNumberDB(value=password, payer_id=payer_id))
+                        raise HTTPException(status_code=500, detail='is_deligate')
+
 
     receipt.name = alias.get('name')
     receipt.bank_name = alias.get('bank_name')
@@ -310,14 +371,6 @@ async def get_pdf(request: Request, order_id: UUID4):
     return FileResponse('{}/order.pdf'.format(BASE_DIR))
 
 
-class User(BaseModel):
-    id: UUID4
-    username: str
-    email: str
-    is_active: bool
-    is_superuser: bool
-
-
 class OldValueResp(BaseModel):
     item: OldReceiptEntity
     count: int
@@ -370,12 +423,16 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
         # if personal_info.phone[0] == '+':
         #    phone = personal_info.phone[1:]
 
-        user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
+        user_in_db = await user_db.get_by_email('{}@online.pay'.format(phone))
+
+        if user_in_db == None:
+            user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
                                                  email='{}@online.pay'.format(phone), name=personal_info.name,
                                                  lastname=personal_info.lastname, grandname=personal_info.grandname,
                                                  city='', street=personal_info.street, home=personal_info.home,
                                                  phone=personal_info.phone, payer_id=payer_id,
                                                  is_delegate=personal_info.is_delegate))
+
 
         if personal_info.phone[0] == '+':
             personal_info.phone = personal_info.phone[1:]
@@ -551,14 +608,19 @@ class SendValidationSmsRq(BaseModel):
 
 @router.post('/sendValidationSms')
 async def send_validation_sms(rq: SendValidationSmsRq) -> str:
-    user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
 
+    if len(re.findall(r'@', rq.phone)):
+        user_in_db = await user_db.get_by_email(rq.phone)
+    else:
+        user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
+    print('UUSSS')
+    print(rq.phone)
     if user_in_db == None:
         if rq.phone[0] == '+':
             user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone[1:]))
         else:
             user_in_db = await user_db.get_by_email('+{}@online.pay'.format(rq.phone))
-
+    print(user_in_db)
     if user_in_db:
         password = ''.join([choice(string.digits) for _ in range(6)])
         user_in_db.hashed_password = get_password_hash(password)
