@@ -256,6 +256,8 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     last_name_only = receipt.last_name
     receipt.last_name = '{} {}. {}.'.format(receipt.last_name, receipt.first_name[0], receipt.grand_name[0])
 
+    receipt.purpose = '{} '.format('Phone=79101234567')
+
     if receipt.counter_type == 2:
         receipt.purpose = 'Т1 {} (расход {} кВт),'.format(receipt.t1_current, receipt.rashod_t1)
 
@@ -1206,8 +1208,13 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
 
 class StreetSumResp(BaseModel):
     street_name: str
-    street_sum: Decimal
-
+    general_sum: Decimal
+    electricity_sum: Decimal
+    losses_sum: Decimal
+    memberfee_sum: Decimal
+    paymPeriod: Decimal
+    street_home_qty: Optional[int]
+    coordinates: List[List[str]] = []
 
 class UndefoundClient(BaseModel):
     title: str
@@ -1227,6 +1234,25 @@ class RespChack1c(BaseModel):
     losses_sum: Decimal
 
 
+def get_street_coordinates(street_list: List[Any], street_name: str):
+    print(street_name, '<<street_id')
+    for street in street_list:
+        if street.get('strName').lower() == street_name:
+            return street.get('geometry').get('coordinates')
+            print(street.get('geometry').get('coordinates'))
+    return []
+
+
+def get_sum_electricity_payments_by_street(street_electricity_sums_dict: Dict[Any, Any]):
+    print(street_electricity_sums_dict, 'get_sum_electricity_payments_by_street')
+    return 0
+
+def get_sum_losses_payments_by_street(street_losses_sums_dict: Dict[Any, Any]):
+    return 0
+
+def get_sum_memberfee_payments_by_street(dict_street_number_houses: Dict[Any, Any]):
+    return 0
+
 @router.post('parser-1c')
 async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
@@ -1238,6 +1264,10 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
     chacking_rows_count = 0
     all_sum = 0
     street_sums_dict = {'Другие': 0}
+    street_electricity_sums_dict = {}
+    street_losses_sums_dict = {}
+    street_membership_fee_sums_dict = {}
+    dict_street_number_houses = {}
 
     hash_addresses = get_addresses_by_hash()
 
@@ -1252,7 +1282,13 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
     r = requests.get(remote_service_config.street_list_url)
 
-    for street in r.json().get('sntList')[0].get('streetList'):
+    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
+    print(r.json().get('sntList')[0].get('streetList'))
+    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
+
+    street_list = r.json().get('sntList')[0].get('streetList')
+
+    for street in street_list:
         if street.get('strName'):
             key_id_dict_streets.update({street.get('strID'): street.get('strName').lower()})
             dict_streets.update({street.get('strName').lower(): street.get('strID')})
@@ -1338,20 +1374,84 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
 
     for raw_receipt_check in raw_receipt_check_list:
         street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
+
+
+        if dict_street_number_houses.get(street_name.lower()):
+            new_value = dict_street_number_houses.get(street_name.lower()) + 1
+        else:
+            new_value = 1
+
+
         if street_sums_dict.get(street_name.lower()):
             street_sum_value = street_sums_dict.get(street_name.lower())
             street_sums_dict.update({street_name.lower(): (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
+
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'electricity':
+                street_electricity_sum_value = street_electricity_sums_dict.get(street_name.lower())
+
+                if street_electricity_sum_value:
+                    street_electricity_sums_dict.update(
+                        {street_name.lower(): (street_electricity_sum_value + Decimal(raw_receipt_check.paid_sum))})
+                else:
+                    street_losses_sums_dict.update(
+                        {street_name.lower(): street_electricity_sum_value})
+
+
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'losses':
+                street_losses_sum_value = street_losses_sums_dict.get(street_name.lower())
+                if street_losses_sum_value:
+                    street_losses_sums_dict.update({street_name.lower(): (street_losses_sum_value + Decimal(raw_receipt_check.paid_sum))})
+                else:
+                    street_losses_sums_dict.update(
+                        {street_name.lower(): street_losses_sum_value})
+
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'membership_fee':
+                street_membership_fee_sum_value = street_losses_sums_dict.get(street_name.lower())
+
+                if street_membership_fee_sum_value:
+                    street_membership_fee_sums_dict.update({street_name.lower(): (street_membership_fee_sum_value + Decimal(raw_receipt_check.paid_sum))})
+                else:
+                    street_losses_sums_dict.update(
+                        {street_name.lower(): street_membership_fee_sum_value})
+
+
+            dict_street_number_houses.update(
+                {street_name.lower(): new_value})
         else:
             street_sums_dict.update({street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
-    sum_streets = [StreetSumResp(street_name=k, street_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'electricity':
+                street_electricity_sums_dict.update(
+                {street_name.lower(): new_value})
+
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'losses':
+                street_losses_sums_dict.update(
+                {street_name.lower(): new_value})
+
+            if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'membership_fee':
+                street_membership_fee_sums_dict.update(
+                {street_name.lower(): new_value})
+
+            dict_street_number_houses.update(
+                {street_name.lower(): new_value})
+
+    print(dict_street_number_houses)
+
+
+    sum_streets = [StreetSumResp(street_name=k, coordinates=get_street_coordinates(street_list, k),
+                                 street_home_qty=dict_street_number_houses.get(k),
+                                 electricity_sum=street_electricity_sums_dict.get(k) if street_electricity_sums_dict.get(k) else 0,
+                                 losses_sum=street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0,
+                                 memberfee_sum=street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0,
+                                 paymPeriod='11111',
+                                 general_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
 
     for uc in undefound_clients:
         raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
                                                       needHandApprove=True, receipt_type=receipt_type,
                                                       paid_sum=uc.paid_sum))
 
-    sum_streets_result = sum(sum_street.street_sum for sum_street in sum_streets)
+    sum_streets_result = sum(sum_street.general_sum for sum_street in sum_streets)
 
     for r in raw_receipt_check_list:
         if r.receipt_type and r.receipt_type.service_name.value == 'membership_fee':
