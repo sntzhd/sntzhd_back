@@ -747,7 +747,7 @@ class MembershipReceiptEntity(ReceiptEntity):
 
 
 @router.post('/add-membership-fee')
-async def add_membership_fee(receipt: MembershipReceiptEntity):
+async def add_membership_fee(receipt: MembershipReceiptEntity, user: User = Depends(fastapi_users.get_optional_current_active_user)):
     alias = get_alias_info(receipt.alias)
 
     if alias == None:
@@ -1254,7 +1254,7 @@ def get_sum_memberfee_payments_by_street(dict_street_number_houses: Dict[Any, An
     return 0
 
 @router.post('parser-1c')
-async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
+async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
     key_id_dict_streets = dict()
     paid_sum = None
@@ -1443,7 +1443,7 @@ async def parser_1c(name_alias: str = 'sntzhd', input_row: str = None, file: Upl
                                  electricity_sum=street_electricity_sums_dict.get(k) if street_electricity_sums_dict.get(k) else 0,
                                  losses_sum=street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0,
                                  memberfee_sum=street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0,
-                                 paymPeriod='11111',
+                                 paymPeriod=paymPeriod,
                                  general_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
 
     for uc in undefound_clients:
