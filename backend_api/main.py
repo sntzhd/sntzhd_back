@@ -6,6 +6,7 @@ from . import app
 from backend_api.injections import base
 
 from backend_api.services.auth_service.endpoints import fastapi_users, jwt_authentication
+from backend_api.utils import on_after_register
 
 inject.configure(base)
 
@@ -28,7 +29,7 @@ app.add_middleware(
 
 def configure_routers():
     app.include_router(
-        fastapi_users.get_register_router(),
+        fastapi_users.get_register_router(on_after_register),
         prefix="/auth",
         tags=["auth"],
     )
@@ -49,6 +50,7 @@ def configure_routers():
         prefix="/users",
         tags=["users"],
     )
+
 
     from backend_api.endpoints import router
 

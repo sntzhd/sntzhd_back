@@ -5,20 +5,21 @@ from fastapi_users.models import BaseUserDB, BaseUserUpdate
 from pymongo import uri_parser
 import motor.motor_asyncio
 from fastapi import FastAPI, Request
+from typing import Optional
 from pydantic import Field
 #from db.users.models import UserBaseDB, UserBaseCreate, UserBase
 from backend_api.entities import ReceiptEntity
 
 
 from config import mongo_config, secret_config
-from backend_api.utils import get_alias_info, get_street_id
+from backend_api.utils import get_alias_info, get_street_id, instance
+from backend_api.interfaces import (IPersonalInfoDAO)
 
 db_name = uri_parser.parse_uri(mongo_config.URI)['database']
 client = motor.motor_asyncio.AsyncIOMotorClient(mongo_config.URI)
 print(uri_parser.parse_uri(mongo_config.URI))
 db = client[db_name]
 collection = db["users"]
-
 
 user_db = MongoDBUserDatabase(BaseUserDB, collection)
 
@@ -38,19 +39,19 @@ class User(models.BaseUser):
 class UserCreate(models.BaseUserCreate):
     def __init__(self, **data):
         super().__init__(**data)
-    #name: str
-    #lastname: str
-    #grandname: str
-    #city: str
-    #street: str
-    #home: str
-    #phone: str
+    first_name: Optional[str]
+    last_name: Optional[str]
+    grand_name: Optional[str]
+    street: Optional[str]
+    numsite: Optional[str]
+    phone: Optional[str]
 
 
 
 class UserUpdate(User, models.BaseUserUpdate):
     def __init__(self, **data):
         super().__init__(**data)
+        print()
     #payer_id: str
 
 
@@ -58,6 +59,13 @@ class UserUpdate(User, models.BaseUserUpdate):
 class UserDB(User, models.BaseUserDB):
     def __init__(self, **data):
         super().__init__(**data)
+
+    first_name: Optional[str]
+    last_name: Optional[str]
+    grand_name: Optional[str]
+    street: Optional[str]
+    numsite: Optional[str]
+    phone: Optional[str]
     #name: str
     #lastname: str
     #grandname: str
@@ -85,12 +93,9 @@ class UserDB(User, models.BaseUserDB):
     #    print(data)
 
 
-def on_after_register(user: UserDB, request: Request):
-    print(f"User {user.id} has registered.")
-
-
 def on_after_forgot_password(user: UserDB, token: str, request: Request):
     print(f"User {user.id} has forgot their password. Reset token: {token}")
+
 
 
 jwt_authentication = JWTAuthentication(
