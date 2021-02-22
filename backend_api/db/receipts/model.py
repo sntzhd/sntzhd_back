@@ -55,6 +55,9 @@ class PersonalInfoDB(BaseDBModel):
     payer_id: str
     numsite: str
     phone: str
+    first_name: str
+    last_name: str
+    grand_name: str
 
 
 class DelegateDB(BaseDBModel):

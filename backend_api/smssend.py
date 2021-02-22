@@ -9,9 +9,8 @@ def send_sms(phone_number: str, msg: str):
 	from backend_api.smsc_api import SMSC
 	smsc = SMSC()
 	r = smsc.send_sms(phone_number, msg, sender="sms")
-
 	if len(r) == 2:
-		if r[1] == '-3':
+		if r[1] == '-3' or r[1] == '-7':
 			return False
 		else:
 			return True

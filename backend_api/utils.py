@@ -84,6 +84,9 @@ class PersonalInfoDB(BaseModel):
     payer_id: str
     numsite: str
     phone: str
+    first_name: str
+    last_name: str
+    grand_name: str
 
 async def on_after_register(user: BaseUserDB, request: Request):
     from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
