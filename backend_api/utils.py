@@ -69,7 +69,7 @@ def get_street_id_by_name(alias: str, stret_name: str):
             for street in snt.get('streetList'):
                 if street.get('strName') == stret_name:
                     street_id = street.get('strID')
-    return street_id
+                    return street_id
 
 
 def get_streets() -> str:
