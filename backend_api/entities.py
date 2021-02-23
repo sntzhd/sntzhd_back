@@ -15,7 +15,9 @@ class Services(str, Enum):
     losses = 'losses'
     membership_fee = 'membership_fee'
     consumption = 'consumption'
-    losses_prepaid = 'losses_prepaid'
+    losses_prepaid = 'losses.prepaid'
+    memberfee2021h1 = 'memberfee2021h1'
+    memberfee2021 = 'memberfee2021'
 
 
 class ReceiptEntity(BaseModel):

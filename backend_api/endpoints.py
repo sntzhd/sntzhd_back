@@ -776,7 +776,23 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
-    receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
+
+    if rq.year == '2021h1':
+        payd_sum = 213900
+        text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
+        receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
+                                corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
+                                payee_inn=alias.get('payee_inn'),
+                                personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
+                                last_name=pinfo.last_name,
+                                grand_name=pinfo.grand_name,
+                                payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
+                                purpose='{} {}'.format(text, 'Phone=79101234567'),
+                                street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
+                                t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
+    else:
+        payd_sum = 2500
+        receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
                             corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
                             personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
                             grand_name=pinfo.grand_name, payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
@@ -791,10 +807,13 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     street_id = get_street_id(receipt)
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(2500, rq.year, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
-    receipt.result_sum = 2500
-    receipt.service_name = 'membership_fee'
+    receipt.result_sum = payd_sum
+    if rq.year == '2021h1':
+        receipt.service_name = 'memberfee2021h1'
+    else:
+        receipt.service_name = 'membership_fee'
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
@@ -804,8 +823,10 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
     img_url = qr_img.json().get('response').get('url')
 
-    receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(
-        rq.year)
+    if rq.year == '2021h1':
+        receipt.purpose = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
+    else:
+        receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(rq.year)
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
@@ -841,7 +862,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
                             grand_name=pinfo.grand_name, payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
                             purpose = 'Потери 15% на 3000 кВт {}'.format('Phone=79101234567'),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
-                            t1_paid=0, service_name='losses_prepaid', numsite=pinfo.numsite)
+                            t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
 
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
@@ -850,10 +871,10 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     street_id = get_street_id(receipt)
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2500, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(213900, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
-    receipt.result_sum = 2500
-    receipt.service_name = 'membership_fee'
+    receipt.result_sum = 213900
+    receipt.service_name = 'losses.prepaid'
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
@@ -863,7 +884,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
 
     img_url = qr_img.json().get('response').get('url')
 
-    receipt.purpose = 'Потери 15% на 3000 кВт'
+    receipt.purpose = 'Потери 15% Т1 (расход 2000 кВт), Т2 (расход 1000 кВт), согласно Протоколу #9 от 28.03.2015г. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
@@ -875,7 +896,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(2500, '00'),
+                                 formating_sum='{} руб {} коп'.format(213900, '00'),
                                  alias_info=AliasInfoResp(**alias))
 
 
