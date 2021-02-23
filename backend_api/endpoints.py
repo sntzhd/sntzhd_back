@@ -821,6 +821,64 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
                                  alias_info=AliasInfoResp(**alias))
 
 
+@router.post('/add-losses-prepaid')
+async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_current_active_user)):
+
+    if user == None:
+        raise HTTPException(status_code=500, detail='Необходима автаризация')
+
+    alias = get_alias_info('sntzhd')
+
+    if alias == None:
+        raise HTTPException(status_code=500, detail='Не верный alias')
+
+    personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    pinfo: PersonalInfoDB = personal_infos.items[0]
+
+    receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
+                            corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
+                            personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
+                            grand_name=pinfo.grand_name, payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose = 'Потери 15% на 3000 кВт {}'.format('Phone=79101234567'),
+                            street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
+                            t1_paid=0, service_name='losses_prepaid', numsite=pinfo.numsite)
+
+
+    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+                         k in response_keys.keys()])
+
+    street_id = get_street_id(receipt)
+
+    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2500, payer_id)
+    # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
+    receipt.result_sum = 2500
+    receipt.service_name = 'membership_fee'
+
+    qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
+                           json={"function": "getQRcode",
+                                 "request": {
+                                     "string": 'ST00012|{}'.format(qr_string)
+                                 }})
+
+    img_url = qr_img.json().get('response').get('url')
+
+    receipt.purpose = 'Потери 15% на 3000 кВт'
+
+    id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
+                                             bill_qr_index=qr_img.json().get('response').get('unique'),
+                                             last_name_only=receipt.last_name))
+
+    receipt = await receipt_dao.get(id_)
+
+    return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
+                                 formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                  months.get(receipt.created_date.month),
+                                                                  receipt.created_date.year),
+                                 formating_sum='{} руб {} коп'.format(2500, '00'),
+                                 alias_info=AliasInfoResp(**alias))
+
+
 class RawReceiptCheck(BaseModel):
     title: str
     test_result: bool
