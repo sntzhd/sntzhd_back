@@ -39,7 +39,7 @@ from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
 from config import secret_config
 from backend_api.parser_utils import check_sum, get_addresses_by_hash
-from backend_api.static_data import street_aliases
+from backend_api.static_data import street_aliases, url_hauses_in_streets
 
 router = APIRouter()
 
@@ -1296,6 +1296,7 @@ class StreetSumResp(BaseModel):
     memberfee_sum: Decimal
     paymPeriod: Decimal
     street_home_qty: Optional[int]
+    street_payment_qty: Optional[int]
     coordinates: List[List[str]] = []
 
 class UndefoundClient(BaseModel):
@@ -1353,6 +1354,16 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     hash_addresses = get_addresses_by_hash()
 
+    shouses = dict()
+
+    r = requests.get(url_hauses_in_streets)
+
+    for s in r.json():
+        if shouses.get(s.get('streetName').lower()):
+            shouses.update({s.get('streetName').lower(): (shouses.get(s.get('streetName').lower()) + 1)})
+        else:
+            shouses.update({s.get('streetName').lower(): 1})
+
     async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
         content = await file.read()
         await out_file.write(content)
@@ -1364,9 +1375,6 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     r = requests.get(remote_service_config.street_list_url)
 
-    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
-    print(r.json().get('sntList')[0].get('streetList'))
-    print('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
 
     street_list = r.json().get('sntList')[0].get('streetList')
 
@@ -1469,6 +1477,9 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
             street_sums_dict.update({street_name.lower(): (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'electricity':
+
+                print("ELECRICITY")
+
                 street_electricity_sum_value = street_electricity_sums_dict.get(street_name.lower())
 
                 if street_electricity_sum_value:
@@ -1517,12 +1528,12 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
             dict_street_number_houses.update(
                 {street_name.lower(): new_value})
 
-    print(dict_street_number_houses)
+
 
 
     sum_streets = [StreetSumResp(street_name=k, coordinates=get_street_coordinates(street_list, k),
-                                 street_home_qty=dict_street_number_houses.get(k),
-                                 electricity_sum=street_electricity_sums_dict.get(k) if street_electricity_sums_dict.get(k) else 0,
+                                 street_home_qty=shouses.get(k), street_payment_qty=dict_street_number_houses.get(k),
+                                 electricity_sum=(street_sums_dict.get(k) - (street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0) - (street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0)),
                                  losses_sum=street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0,
                                  memberfee_sum=street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0,
                                  paymPeriod=paymPeriod,
@@ -1535,9 +1546,9 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     sum_streets_result = sum(sum_street.general_sum for sum_street in sum_streets)
 
-    for r in raw_receipt_check_list:
-        if r.receipt_type and r.receipt_type.service_name.value == 'membership_fee':
-            print(r)
+    #for r in raw_receipt_check_list:
+    #    if r.receipt_type and r.receipt_type.service_name.value == 'membership_fee':
+    #        print(r)
 
     membership_fee_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
                               r.receipt_type and r.receipt_type.service_name.value == 'membership_fee'])
