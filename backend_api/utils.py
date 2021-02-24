@@ -134,7 +134,7 @@ def smsru_send_sms(phone, msg):
     sms_resp = r.json()
 
     if sms_resp:
-        if sms_resp.get(phone).get('status') == 'OK':
+        if sms_resp.get('sms'):
             return True
 
     return False
