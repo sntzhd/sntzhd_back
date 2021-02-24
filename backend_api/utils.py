@@ -8,6 +8,7 @@ from fastapi_users.models import BaseUserDB
 from pydantic import BaseModel, UUID4, Field
 from uuid import UUID
 from urllib.parse import quote_plus
+import time
 
 from backend_api.smsc_api import SMSC
 
@@ -106,21 +107,28 @@ async def on_after_register(user: BaseUserDB, request: Request):
 
 def greensmsru_send_sms(phone, msg):
     """Отправка смс сообщения через сервис greensms.ru"""
-    return False
+    print('I am greensmsru_send_sms >>', phone)
     api_url = 'https://api3.greensms.ru/sms/send'
     params = {'user': 'sntzhdru',
               'pass': 'Tb709DWc',
               'to': phone,
               'txt': quote_plus(msg)}
-    r = requests.get(api_url, params)
-    if r.status_code != 200:
-        print(r.status_code, r.reason)
-        return None
-    return r.json()
+    r = requests.post(api_url, params)
+
+
+    if r.status_code == 200:
+        time.sleep(2)
+        rr = requests.get("https://api3.greensms.ru/sms/status?user=sntzhdru&pass=Tb709DWc&id={}".format(r.json().get('request_id')))
+        print(rr.json())
+        if rr.json().get('status_code') in [1, 8]:
+            return True
+        return False
+    return False
 
 
 def smsru_send_sms(phone, msg):
     """Отправка смс сообщения через сервис sms.ru"""
+    print('I am smsru_send_sms >>', phone)
     api_url = 'https://sms.ru/sms/send'
     params = {'api_id': 'BD780086-9A87-A775-27AA-B669FB4BF155',
               'to': phone,
@@ -141,6 +149,7 @@ def smsru_send_sms(phone, msg):
 
 
 def smsc_send_sms(phone, msg):
+    print('I am smsc_send_sms >>', phone)
     smsc = SMSC()
 
     r = smsc.send_sms(phone, msg, sender="sms")
