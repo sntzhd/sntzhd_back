@@ -130,7 +130,7 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     receipt.last_name=pinfo.last_name
     receipt.grand_name=pinfo.grand_name
     receipt.street=pinfo.street_name
-    receipt.payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite)
+    receipt.payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite)
 
 
 
@@ -151,7 +151,7 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     #           if street.get('strName') == receipt.street:
     #               street_id = street.get('strID')
 
-    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, pinfo.numsite)
 
 
     #print(payer_id, "FFFFFFFFFFFFFF")
@@ -648,7 +648,7 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
             send_sms_status = send_sms('7{}'.format(rq.phone.split('@')[0]), password)
 
             if send_sms_status == False:
-                raise HTTPException(status_code=500, detail='Ошибка сервиса')
+                raise HTTPException(status_code=500, detail='Ошибка сервиса, код авторизации: {}'.format(password))
         else:
             print(password)
 
@@ -778,7 +778,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
 
     if rq.year == '2021h1':
-        payd_sum = 213900
+        payd_sum = 2139
         text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
         receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
                                 corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
@@ -824,8 +824,10 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     img_url = qr_img.json().get('response').get('url')
 
     if rq.year == '2021h1':
+        resp_sum = 2139
         receipt.purpose = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
     else:
+        resp_sum = 2500
         receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(rq.year)
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
@@ -834,11 +836,13 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
     receipt = await receipt_dao.get(id_)
 
+
+
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(2500, '00'),
+                                 formating_sum='{} руб {} коп'.format(resp_sum, '00'),
                                  alias_info=AliasInfoResp(**alias))
 
 
