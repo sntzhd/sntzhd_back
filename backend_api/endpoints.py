@@ -875,9 +875,9 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     street_id = get_street_id(receipt)
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(213900, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2139, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
-    receipt.result_sum = 213900
+    receipt.result_sum = 2139
     receipt.service_name = 'losses.prepaid'
 
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
@@ -900,7 +900,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
-                                 formating_sum='{} руб {} коп'.format(213900, '00'),
+                                 formating_sum='{} руб {} коп'.format(2139, '00'),
                                  alias_info=AliasInfoResp(**alias))
 
 
