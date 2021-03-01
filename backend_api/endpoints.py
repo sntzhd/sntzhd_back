@@ -182,7 +182,7 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
                 print('SAVE DELEGATE')
 
             if checking_numbers.count == 0:
-                raise HTTPException(status_code=500, detail='Не верный код подтверждения')
+                raise HTTPException(status_code=500, detail='Не верный код подтверждения. Попробуйте ввести его в поле Код подтверждения или начните сначала')
         else:
 
             personal_info_list = await personal_info_dao.list(0, 1, {'payer_id': payer_id})
