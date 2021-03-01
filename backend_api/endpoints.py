@@ -786,7 +786,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name=pinfo.last_name,
                                 grand_name=pinfo.grand_name,
-                                payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
+                                payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
                                 purpose='{} {}'.format(text, 'Phone=79101234567'),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
@@ -795,7 +795,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
         receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
                             corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
                             personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
+                            grand_name=pinfo.grand_name, payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
                             purpose = 'Членский взнос за {} {}'.format(rq.year ,'Phone=79101234567'),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
@@ -804,9 +804,11 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
 
+    print(receipt)
     street_id = get_street_id(receipt)
+    print(street_id, 'street_id')
 
-    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    payer_id = pinfo.payer_id #'{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = payd_sum
@@ -863,7 +865,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
                             corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
                             personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{} {}'.format(pinfo.street_name, pinfo.numsite),
+                            grand_name=pinfo.grand_name, payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
                             purpose = 'Потери 15% на 3000 кВт {}'.format('Phone=79101234567'),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
@@ -874,7 +876,7 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
 
     street_id = get_street_id(receipt)
 
-    payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    payer_id = pinfo.payer_id #'{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
     qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2139, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = 2139
