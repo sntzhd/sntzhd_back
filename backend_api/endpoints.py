@@ -1324,6 +1324,11 @@ class StreetSumResp(BaseModel):
     street_payment_qty: Optional[int]
     coordinates: List[List[str]] = []
 
+
+class PayerIdSum(BaseModel):
+    payer_id: str
+    general_sum: Decimal
+
 class UndefoundClient(BaseModel):
     title: str
     payer_id: str
@@ -1336,6 +1341,7 @@ class RespChack1c(BaseModel):
     all_rows_count: int
     chacking_rows_count: int
     sum_streets: List[StreetSumResp]
+    payer_ids_sums: List[PayerIdSum]
     all_sum: Decimal
     sum_streets_result: Decimal
     membership_fee_sum: Decimal
@@ -1360,6 +1366,15 @@ def get_sum_losses_payments_by_street(street_losses_sums_dict: Dict[Any, Any]):
 
 def get_sum_memberfee_payments_by_street(dict_street_number_houses: Dict[Any, Any]):
     return 0
+
+def get_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCheck]):
+    result = 0
+
+    for r in raw_receipt_check_list:
+        if r.payer_id == payer_id:
+            result += Decimal(r.paid_sum)
+    return result
+
 
 @router.post('parser-1c')
 async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
@@ -1565,6 +1580,16 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                                  paymPeriod=paymPeriod,
                                  general_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
 
+    all_payer_ids = [r.payer_id for r in raw_receipt_check_list]
+
+    print('EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
+    print(len(all_payer_ids))
+    print(len(set(all_payer_ids)))
+
+    payer_ids_sums = [PayerIdSum(payer_id=payer_id, general_sum=get_sum_to_payer_id(payer_id, raw_receipt_check_list)) for payer_id in set(all_payer_ids)]
+
+
+
     for uc in undefound_clients:
         raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
                                                       needHandApprove=True, receipt_type=receipt_type,
@@ -1591,6 +1616,6 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
 
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
-                       all_sum=all_sum,
+                       all_sum=all_sum, payer_ids_sums=payer_ids_sums,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
                        sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum, losses_sum=losses_sum)
