@@ -1503,15 +1503,13 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'electricity':
 
-                print("ELECRICITY")
-
                 street_electricity_sum_value = street_electricity_sums_dict.get(street_name.lower())
 
                 if street_electricity_sum_value:
                     street_electricity_sums_dict.update(
                         {street_name.lower(): (street_electricity_sum_value + Decimal(raw_receipt_check.paid_sum))})
                 else:
-                    street_losses_sums_dict.update(
+                    street_electricity_sums_dict.update(
                         {street_name.lower(): street_electricity_sum_value})
 
 
@@ -1521,15 +1519,15 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                     street_losses_sums_dict.update({street_name.lower(): (street_losses_sum_value + Decimal(raw_receipt_check.paid_sum))})
                 else:
                     street_losses_sums_dict.update(
-                        {street_name.lower(): street_losses_sum_value})
+                        {street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'membership_fee':
-                street_membership_fee_sum_value = street_losses_sums_dict.get(street_name.lower())
+                street_membership_fee_sum_value = street_membership_fee_sums_dict.get(street_name.lower())
 
                 if street_membership_fee_sum_value:
                     street_membership_fee_sums_dict.update({street_name.lower(): (street_membership_fee_sum_value + Decimal(raw_receipt_check.paid_sum))})
                 else:
-                    street_losses_sums_dict.update(
+                    street_membership_fee_sums_dict.update(
                         {street_name.lower(): street_membership_fee_sum_value})
 
 
@@ -1543,8 +1541,11 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                 {street_name.lower(): new_value})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'losses':
-                street_losses_sums_dict.update(
-                {street_name.lower(): new_value})
+                if street_losses_sums_dict.get(street_name.lower()):
+                    street_losses_sums_dict.update(
+                        {street_name.lower(): (street_losses_sums_dict.get(street_name.lower())+Decimal(raw_receipt_check.paid_sum))})
+                else:
+                    street_losses_sums_dict.update({street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'membership_fee':
                 street_membership_fee_sums_dict.update(
@@ -1579,6 +1580,16 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                               r.receipt_type and r.receipt_type.service_name.value == 'membership_fee'])
     losses_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
                   r.receipt_type and r.receipt_type.service_name.value == 'losses'])
+
+    s = 0
+    for r in raw_receipt_check_list:
+
+        if r.receipt_type and r.receipt_type.service_name.value == 'losses':
+            s += Decimal(r.paid_sum)
+
+    print(s)
+
+
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
                        all_sum=all_sum,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
