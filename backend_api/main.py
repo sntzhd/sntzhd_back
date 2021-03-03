@@ -53,8 +53,9 @@ def configure_routers():
 
 
     from backend_api.endpoints import router
+    from backend_api.problems.endpoints import router as router_problems
 
     app.include_router(router, prefix='/receipts', tags=["receipts"])
-
+    app.include_router(router_problems, prefix='/problems', tags=["problems"])
 
 configure_routers()

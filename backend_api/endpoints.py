@@ -1330,6 +1330,7 @@ class StreetSumResp(BaseModel):
 class PayerIdSum(BaseModel):
     payer_id: str
     general_sum: Decimal
+    losses_sum: Decimal
 
 class UndefoundClient(BaseModel):
     title: str
@@ -1375,6 +1376,15 @@ def get_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCh
     for r in raw_receipt_check_list:
         if r.payer_id == payer_id:
             result += Decimal(r.paid_sum)
+    return result
+
+def get_losses_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCheck]):
+    result = 0
+
+    for r in raw_receipt_check_list:
+        if r.receipt_type and r.receipt_type.service_name.value == 'losses':
+            if r.payer_id == payer_id:
+                result += Decimal(r.paid_sum)
     return result
 
 
@@ -1584,11 +1594,9 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     all_payer_ids = [r.payer_id for r in raw_receipt_check_list]
 
-    print('EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
-    print(len(all_payer_ids))
-    print(len(set(all_payer_ids)))
 
-    payer_ids_sums = [PayerIdSum(payer_id=payer_id, general_sum=get_sum_to_payer_id(payer_id, raw_receipt_check_list)) for payer_id in set(all_payer_ids)]
+    payer_ids_sums = [PayerIdSum(payer_id=payer_id, losses_sum=get_losses_sum_to_payer_id(payer_id, raw_receipt_check_list),
+                                 general_sum=get_sum_to_payer_id(payer_id, raw_receipt_check_list)) for payer_id in set(all_payer_ids)]
 
 
 

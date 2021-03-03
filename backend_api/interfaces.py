@@ -58,3 +58,9 @@ class IDelegateEventDAO(IGenericDAO):
 
 class ICheckingNumberDAO(IGenericDAO):
     pass
+
+class IProblemDAO(IGenericDAO):
+    pass
+
+class IVoteDAO(IGenericDAO):
+    pass
