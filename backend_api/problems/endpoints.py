@@ -41,7 +41,10 @@ async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_u
 async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
 
-    filters = dict()
+    if user.is_superuser:
+        filters = dict()
+    else:
+        filters = dict(user_id=user.id)
     problems = await problem_dao.list(skip, HISTORY_PAGE_SIZE, filters)
     return ListResponse(items=problems.items, count=problems.count)
 
