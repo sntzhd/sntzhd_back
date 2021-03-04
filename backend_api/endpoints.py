@@ -778,7 +778,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
 
     if rq.year == '2021h1':
-        payd_sum = 2139
+        payd_sum = 1259
         text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
         receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
                                 corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
@@ -786,7 +786,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name=pinfo.last_name,
                                 grand_name=pinfo.grand_name,
-                                payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
+                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
                                 purpose='{} {}'.format(text, 'Phone=79101234567'),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
