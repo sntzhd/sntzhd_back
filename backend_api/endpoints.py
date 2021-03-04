@@ -212,13 +212,6 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     receipt.payee_inn = alias.get('payee_inn')
     receipt.personal_acc = alias.get('personal_acc')
 
-    # receipt.name = 'СНТ \\"ЖЕЛЕЗНОДОРОЖНИК\\"'
-    # receipt.bank_name = 'Филиал \\"Центральный\\" Банка ВТБ (ПАО) в г. Москве'
-    # receipt.bic = '044525411'
-    # receipt.corresp_acc = '30101810145250000411'
-    # receipt.kpp = '231201001'
-    # receipt.payee_inn = '2312088371'
-    # receipt.personal_acc = '40703810007550006617'
 
     r = requests.get(remote_service_config.default_data_url)
 
@@ -270,7 +263,7 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     last_name_only = receipt.last_name
     receipt.last_name = '{} {}. {}.'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name)
 
-    receipt.purpose = '{} '.format('Phone=79101234567')
+    receipt.purpose = '{} '.format('|Phone={}'.format(pinfo.phone))
 
     if receipt.counter_type == 2:
         receipt.purpose = 'Т1 {} (расход {} кВт),'.format(receipt.t1_current, receipt.rashod_t1)
@@ -787,7 +780,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
                                 last_name=pinfo.last_name,
                                 grand_name=pinfo.grand_name,
                                 payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='{} {}'.format(text, 'Phone=79101234567'),
+                                purpose='{} {}'.format(text, '|Phone={}'.format(pinfo)),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
     else:
@@ -795,8 +788,8 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
         receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
                             corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
                             personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose = 'Членский взнос за {} {}'.format(rq.year ,'Phone=79101234567'),
+                            grand_name=pinfo.grand_name, payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose = 'Членский взнос за {} {}'.format(rq.year ,'|Phone={}'.format(pinfo.phone)),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
 
@@ -865,8 +858,8 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
                             corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
                             personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{} ,{}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose = 'Потери 15% на 3000 кВт {}'.format('Phone=79101234567'),
+                            grand_name=pinfo.grand_name, payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose = 'Потери 15% на 3000 кВт {}'.format('|Phone={}'.format(pinfo.phone)),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
 
