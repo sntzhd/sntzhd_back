@@ -778,7 +778,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
 
     if rq.year == '2021h1':
-        payd_sum = 1259
+        payd_sum = 1250
         text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
         receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
                                 corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
