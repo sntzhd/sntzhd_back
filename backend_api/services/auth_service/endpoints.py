@@ -25,7 +25,7 @@ user_db = MongoDBUserDatabase(BaseUserDB, collection)
 
 auth_backends = []
 
-jwt_authentication = JWTAuthentication(secret=secret_config.SECRET_KEY, lifetime_seconds=36)
+jwt_authentication = JWTAuthentication(secret=secret_config.SECRET_KEY, lifetime_seconds=2592000)
 
 auth_backends.append(jwt_authentication)
 

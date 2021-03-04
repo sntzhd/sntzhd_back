@@ -74,3 +74,4 @@ class DelegateEventDB(BaseDBModel):
 class CheckingNumberDB(BaseDBModel):
     value: str
     payer_id: str
+    created_date: datetime = Field(default_factory=now())
