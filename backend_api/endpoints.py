@@ -643,6 +643,7 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
             if send_sms_status == False:
                 raise HTTPException(status_code=500, detail='Ошибка сервиса, код авторизации: {}'.format(password))
         else:
+            print('NO SEND')
             print(password)
 
         return password
