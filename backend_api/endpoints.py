@@ -1509,8 +1509,10 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                         pass
 
     for raw_receipt_check in raw_receipt_check_list:
-        street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
-
+        try:
+            street_name = key_id_dict_streets.get(int(raw_receipt_check.payer_id[5:9]))
+        except ValueError:
+            continue
 
         if dict_street_number_houses.get(street_name.lower()):
             new_value = dict_street_number_houses.get(street_name.lower()) + 1
