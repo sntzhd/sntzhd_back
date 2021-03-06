@@ -119,7 +119,7 @@ async def delegate_confirmation_rights(receipt: ReceiptEntity) -> CreateReceiptR
 
 @router.post('/create-receipt', description='Создание квитанции')
 async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_users.get_optional_current_active_user)) -> CreateReceiptResponse:
-
+    print(user, '<< CREADER R USER')
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel
-from typing import List
+from typing import List, Any
 
 from backend_api.interfaces import IProblemDAO, IVoteDAO
 from backend_api.db.problems.models import ProblemTypes, TagNames, Statuses, ProblemDB, Importance, VoteDB
@@ -20,12 +20,10 @@ class ProblemRq(BaseModel):
     title: str
     problem_type: ProblemTypes
     tags: List[TagNames]
-    status: Statuses
-    docs: List[str] = []
-    actions: List[str] = []
-    problem_photos: List[str] = []
-    problem_audios: List[str] = []
-    problem_videos: List[str] = []
+    docs: List[Any] = []
+    problem_photos: List[Any] = []
+    problem_audios: List[Any] = []
+    problem_videos: List[Any] = []
     comment_problem: str
     snt: str
     through: str
@@ -34,7 +32,7 @@ class ProblemRq(BaseModel):
 
 @router.post('/report-problem', description='Сообщить о проблеме')
 async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_user)):
-    await problem_dao.create(ProblemDB(**rq.dict(), responsible=user.id, user_id=user.id))
+    await problem_dao.create(ProblemDB(**rq.dict(), status='new', responsible=user.id, user_id=user.id))
 
 
 @router.get('/problems', description='Проблемы')

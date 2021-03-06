@@ -99,7 +99,7 @@ def on_after_forgot_password(user: UserDB, token: str, request: Request):
 
 
 jwt_authentication = JWTAuthentication(
-    secret=secret_config.SECRET_KEY, lifetime_seconds=3600, tokenUrl="/auth/jwt/login"
+    secret=secret_config.SECRET_KEY, lifetime_seconds=2592000, tokenUrl="/auth/jwt/login"
 )
 
 
