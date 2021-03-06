@@ -47,6 +47,7 @@ class ReceiptEntity(BaseModel):
     counter_image_id: Optional[str]
     alias: Optional[str]
     checking_number: Optional[str]
+    neighbour: Optional[str]
 
 
 class PersonalInfoEntity(BaseModel):

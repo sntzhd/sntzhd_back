@@ -123,7 +123,10 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
-    personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    if receipt.neighbour:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': receipt.neighbour})
+    else:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
     receipt.first_name=pinfo.first_name
@@ -200,11 +203,12 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
                 if personal_info_list.items[0].user_id != user.id:
                     delegate_result = await delegate_dao.list(0, 1, {'user_id': user.id})
 
-                    if payer_id not in delegate_result.items[0].payer_ids:
-                        password = ''.join([choice(string.digits) for _ in range(6)])
-                        print('CREATE checking_number', password)
-                        await checking_number_dao.create(CheckingNumberDB(value=password, payer_id=payer_id))
-                        raise HTTPException(status_code=500, detail='is_deligate')
+                    if delegate_result.count > 0:
+                        if payer_id not in delegate_result.items[0].payer_ids:
+                            password = ''.join([choice(string.digits) for _ in range(6)])
+                            print('CREATE checking_number', password)
+                            await checking_number_dao.create(CheckingNumberDB(value=password, payer_id=payer_id))
+                            raise HTTPException(status_code=500, detail='is_deligate')
 
 
     receipt.name = alias.get('name')
