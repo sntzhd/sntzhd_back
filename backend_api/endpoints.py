@@ -153,6 +153,8 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, pinfo.numsite)
 
+    payer_id = pinfo.payer_id
+
 
     #print(payer_id, "FFFFFFFFFFFFFF")
     #raise HTTPException(status_code=500, detail='Не верный alias')
@@ -197,6 +199,7 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
             if personal_info_list.count > 0:
                 if personal_info_list.items[0].user_id != user.id:
                     delegate_result = await delegate_dao.list(0, 1, {'user_id': user.id})
+
                     if payer_id not in delegate_result.items[0].payer_ids:
                         password = ''.join([choice(string.digits) for _ in range(6)])
                         print('CREATE checking_number', password)
