@@ -1639,7 +1639,7 @@ class UserInfo(BaseModel):
     address: str
 
 
-@router.post('/user-info', )
+@router.get('/user-info', )
 async def user_info(user: User = Depends(fastapi_users.get_current_user)) -> UserInfo:
     personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
