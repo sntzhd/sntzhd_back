@@ -100,9 +100,9 @@ class CreateReceiptResponse(BaseModel):
     alias_info: AliasInfoResp
 
 
-
 el_text = 'Оплата электроэнергии по договору №10177'
 lose_text = 'ПОТЕРИ 15% СОГЛАСНО ПРОТОКОЛУ №9 ОТ 28.03.2015Г'
+
 
 class User(BaseModel):
     id: UUID4
@@ -118,7 +118,8 @@ async def delegate_confirmation_rights(receipt: ReceiptEntity) -> CreateReceiptR
 
 
 @router.post('/create-receipt', description='Создание квитанции')
-async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_users.get_optional_current_active_user)) -> CreateReceiptResponse:
+async def create_receipt(receipt: ReceiptEntity,
+                         user: User = Depends(fastapi_users.get_optional_current_active_user)) -> CreateReceiptResponse:
     print(user, '<< CREADER R USER')
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
@@ -129,13 +130,11 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
         personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
-    receipt.first_name=pinfo.first_name
-    receipt.last_name=pinfo.last_name
-    receipt.grand_name=pinfo.grand_name
-    receipt.street=pinfo.street_name
-    receipt.payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite)
-
-
+    receipt.first_name = pinfo.first_name
+    receipt.last_name = pinfo.last_name
+    receipt.grand_name = pinfo.grand_name
+    receipt.street = pinfo.street_name
+    receipt.payer_address = '{}, {}'.format(pinfo.street_name, pinfo.numsite)
 
     current_tariff = None
 
@@ -158,13 +157,12 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
 
     payer_id = pinfo.payer_id
 
-
-    #print(payer_id, "FFFFFFFFFFFFFF")
-    #raise HTTPException(status_code=500, detail='Не верный alias')
+    # print(payer_id, "FFFFFFFFFFFFFF")
+    # raise HTTPException(status_code=500, detail='Не верный alias')
 
     old_receipts = await receipt_dao.list(0, 1, {'payer_id': payer_id})
 
-    #if user == None:
+    # if user == None:
     #    raise HTTPException(status_code=500, detail='must_login')
 
     if old_receipts.count > 0:
@@ -187,11 +185,11 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
                 print('SAVE DELEGATE')
 
             if checking_numbers.count == 0:
-                raise HTTPException(status_code=500, detail='Не верный код подтверждения. Попробуйте ввести его в поле Код подтверждения или начните сначала')
+                raise HTTPException(status_code=500,
+                                    detail='Не верный код подтверждения. Попробуйте ввести его в поле Код подтверждения или начните сначала')
         else:
 
             personal_info_list = await personal_info_dao.list(0, 1, {'payer_id': payer_id})
-
 
             if user == None:
                 password = ''.join([choice(string.digits) for _ in range(6)])
@@ -210,7 +208,6 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
                             await checking_number_dao.create(CheckingNumberDB(value=password, payer_id=payer_id))
                             raise HTTPException(status_code=500, detail='is_deligate')
 
-
     receipt.name = alias.get('name')
     receipt.bank_name = alias.get('bank_name')
     receipt.bic = alias.get('bic')
@@ -218,7 +215,6 @@ async def create_receipt(receipt: ReceiptEntity, user: User = Depends(fastapi_us
     receipt.kpp = alias.get('kpp')
     receipt.payee_inn = alias.get('payee_inn')
     receipt.personal_acc = alias.get('personal_acc')
-
 
     r = requests.get(remote_service_config.default_data_url)
 
@@ -443,12 +439,11 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 
         if user_in_db == None:
             user_in_db = await user_db.create(UserDB(id=create_id(), hashed_password=get_password_hash('1111'),
-                                                 email='{}@online.pay'.format(phone), name=personal_info.name,
-                                                 lastname=personal_info.lastname, grandname=personal_info.grandname,
-                                                 city='', street=personal_info.street, home=personal_info.home,
-                                                 phone=personal_info.phone, payer_id=payer_id,
-                                                 is_delegate=personal_info.is_delegate))
-
+                                                     email='{}@online.pay'.format(phone), name=personal_info.name,
+                                                     lastname=personal_info.lastname, grandname=personal_info.grandname,
+                                                     city='', street=personal_info.street, home=personal_info.home,
+                                                     phone=personal_info.phone, payer_id=payer_id,
+                                                     is_delegate=personal_info.is_delegate))
 
         if personal_info.phone[0] == '+':
             personal_info.phone = personal_info.phone[1:]
@@ -624,7 +619,6 @@ class SendValidationSmsRq(BaseModel):
 
 @router.post('/sendValidationSms')
 async def send_validation_sms(rq: SendValidationSmsRq) -> str:
-
     if len(re.findall(r'@', rq.phone)):
         user_in_db = await user_db.get_by_email(rq.phone)
     else:
@@ -764,8 +758,8 @@ class MembershipReceiptEntity(BaseModel):
 
 
 @router.post('/add-membership-fee')
-async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(fastapi_users.get_optional_current_active_user)):
-
+async def add_membership_fee(rq: MembershipReceiptEntity,
+                             user: User = Depends(fastapi_users.get_optional_current_active_user)):
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
@@ -776,7 +770,6 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
     personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
-
 
     if rq.year == '2021h1':
         payd_sum = 1250
@@ -793,14 +786,16 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
     else:
         payd_sum = 2500
-        receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
-                            corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
-                            personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose = 'Членский взнос за {} {}'.format(rq.year ,'|Phone={}'.format(pinfo.phone)),
-                            street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
-                            t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
-
+        receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
+                                corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
+                                payee_inn=alias.get('payee_inn'),
+                                personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
+                                last_name=pinfo.last_name,
+                                grand_name=pinfo.grand_name,
+                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                purpose='Членский взнос за {} {}'.format(rq.year, '|Phone={}'.format(pinfo.phone)),
+                                street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
+                                t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -809,7 +804,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     street_id = get_street_id(receipt)
     print(street_id, 'street_id')
 
-    payer_id = pinfo.payer_id #'{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = payd_sum
@@ -827,19 +822,18 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
     img_url = qr_img.json().get('response').get('url')
 
     if rq.year == '2021h1':
-        resp_sum = 2139
+        resp_sum = 2500
         receipt.purpose = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
     else:
         resp_sum = 2500
-        receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(rq.year)
+        receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(
+            rq.year)
 
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=receipt.last_name))
 
     receipt = await receipt_dao.get(id_)
-
-
 
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
@@ -851,7 +845,6 @@ async def add_membership_fee(rq: MembershipReceiptEntity, user: User = Depends(f
 
 @router.post('/add-losses-prepaid')
 async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_current_active_user)):
-
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
@@ -863,21 +856,23 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
-    receipt = ReceiptEntity(name=alias.get('name'), bank_name = alias.get('bank_name'), bic = alias.get('bic'),
-                            corresp_acc = alias.get('corresp_acc'), kpp = alias.get('kpp'), payee_inn = alias.get('payee_inn'),
-                            personal_acc = alias.get('personal_acc'), first_name=pinfo.first_name, last_name=pinfo.last_name,
-                            grand_name=pinfo.grand_name, payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose = 'Потери 15% на 3000 кВт {}'.format('|Phone={}'.format(pinfo.phone)),
+    receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
+                            corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
+                            payee_inn=alias.get('payee_inn'),
+                            personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
+                            last_name=pinfo.last_name,
+                            grand_name=pinfo.grand_name,
+                            payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose='Потери 15% на 3000 кВт {}'.format('|Phone={}'.format(pinfo.phone)),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
-
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
 
     street_id = get_street_id(receipt)
 
-    payer_id = pinfo.payer_id #'{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
     qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2139, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = 2139
@@ -1333,6 +1328,7 @@ class PayerIdSum(BaseModel):
     general_sum: Decimal
     losses_sum: Decimal
 
+
 class UndefoundClient(BaseModel):
     title: str
     payer_id: str
@@ -1365,11 +1361,14 @@ def get_sum_electricity_payments_by_street(street_electricity_sums_dict: Dict[An
     print(street_electricity_sums_dict, 'get_sum_electricity_payments_by_street')
     return 0
 
+
 def get_sum_losses_payments_by_street(street_losses_sums_dict: Dict[Any, Any]):
     return 0
 
+
 def get_sum_memberfee_payments_by_street(dict_street_number_houses: Dict[Any, Any]):
     return 0
+
 
 def get_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCheck]):
     result = 0
@@ -1378,6 +1377,7 @@ def get_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCh
         if r.payer_id == payer_id:
             result += Decimal(r.paid_sum)
     return result
+
 
 def get_losses_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawReceiptCheck]):
     result = 0
@@ -1390,7 +1390,8 @@ def get_losses_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawRe
 
 
 @router.post('parser-1c')
-async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
+async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str = None,
+                    file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
     key_id_dict_streets = dict()
     paid_sum = None
@@ -1427,7 +1428,6 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
     alias = get_alias_info(name_alias)
 
     r = requests.get(remote_service_config.street_list_url)
-
 
     street_list = r.json().get('sntList')[0].get('streetList')
 
@@ -1526,7 +1526,6 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
         else:
             new_value = 1
 
-
         if street_sums_dict.get(street_name.lower()):
             street_sum_value = street_sums_dict.get(street_name.lower())
             street_sums_dict.update({street_name.lower(): (street_sum_value + Decimal(raw_receipt_check.paid_sum))})
@@ -1542,11 +1541,11 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                     street_electricity_sums_dict.update(
                         {street_name.lower(): street_electricity_sum_value})
 
-
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'losses':
                 street_losses_sum_value = street_losses_sums_dict.get(street_name.lower())
                 if street_losses_sum_value:
-                    street_losses_sums_dict.update({street_name.lower(): (street_losses_sum_value + Decimal(raw_receipt_check.paid_sum))})
+                    street_losses_sums_dict.update(
+                        {street_name.lower(): (street_losses_sum_value + Decimal(raw_receipt_check.paid_sum))})
                 else:
                     street_losses_sums_dict.update(
                         {street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
@@ -1555,11 +1554,11 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                 street_membership_fee_sum_value = street_membership_fee_sums_dict.get(street_name.lower())
 
                 if street_membership_fee_sum_value:
-                    street_membership_fee_sums_dict.update({street_name.lower(): (street_membership_fee_sum_value + Decimal(raw_receipt_check.paid_sum))})
+                    street_membership_fee_sums_dict.update(
+                        {street_name.lower(): (street_membership_fee_sum_value + Decimal(raw_receipt_check.paid_sum))})
                 else:
                     street_membership_fee_sums_dict.update(
                         {street_name.lower(): street_membership_fee_sum_value})
-
 
             dict_street_number_houses.update(
                 {street_name.lower(): new_value})
@@ -1568,40 +1567,41 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'electricity':
                 street_electricity_sums_dict.update(
-                {street_name.lower(): new_value})
+                    {street_name.lower(): new_value})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'losses':
                 if street_losses_sums_dict.get(street_name.lower()):
                     street_losses_sums_dict.update(
-                        {street_name.lower(): (street_losses_sums_dict.get(street_name.lower())+Decimal(raw_receipt_check.paid_sum))})
+                        {street_name.lower(): (street_losses_sums_dict.get(street_name.lower()) + Decimal(
+                            raw_receipt_check.paid_sum))})
                 else:
                     street_losses_sums_dict.update({street_name.lower(): Decimal(raw_receipt_check.paid_sum)})
 
             if raw_receipt_check.receipt_type and raw_receipt_check.receipt_type.service_name == 'membership_fee':
                 street_membership_fee_sums_dict.update(
-                {street_name.lower(): new_value})
+                    {street_name.lower(): new_value})
 
             dict_street_number_houses.update(
                 {street_name.lower(): new_value})
 
-
-
-
     sum_streets = [StreetSumResp(street_name=k, coordinates=get_street_coordinates(street_list, k),
                                  street_home_qty=shouses.get(k), street_payment_qty=dict_street_number_houses.get(k),
-                                 electricity_sum=(street_sums_dict.get(k) - (street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0) - (street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0)),
+                                 electricity_sum=(street_sums_dict.get(k) - (
+                                     street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0) - (
+                                                      street_membership_fee_sums_dict.get(
+                                                          k) if street_membership_fee_sums_dict.get(k) else 0)),
                                  losses_sum=street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0,
-                                 memberfee_sum=street_membership_fee_sums_dict.get(k) if street_membership_fee_sums_dict.get(k) else 0,
+                                 memberfee_sum=street_membership_fee_sums_dict.get(
+                                     k) if street_membership_fee_sums_dict.get(k) else 0,
                                  paymPeriod=paymPeriod,
                                  general_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
 
     all_payer_ids = [r.payer_id for r in raw_receipt_check_list]
 
-
-    payer_ids_sums = [PayerIdSum(payer_id=payer_id, losses_sum=get_losses_sum_to_payer_id(payer_id, raw_receipt_check_list),
-                                 general_sum=get_sum_to_payer_id(payer_id, raw_receipt_check_list)) for payer_id in set(all_payer_ids)]
-
-
+    payer_ids_sums = [
+        PayerIdSum(payer_id=payer_id, losses_sum=get_losses_sum_to_payer_id(payer_id, raw_receipt_check_list),
+                   general_sum=get_sum_to_payer_id(payer_id, raw_receipt_check_list)) for payer_id in
+        set(all_payer_ids)]
 
     for uc in undefound_clients:
         raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
@@ -1610,14 +1610,14 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     sum_streets_result = sum(sum_street.general_sum for sum_street in sum_streets)
 
-    #for r in raw_receipt_check_list:
+    # for r in raw_receipt_check_list:
     #    if r.receipt_type and r.receipt_type.service_name.value == 'membership_fee':
     #        print(r)
 
     membership_fee_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
                               r.receipt_type and r.receipt_type.service_name.value == 'membership_fee'])
     losses_sum = sum([Decimal(r.paid_sum) for r in raw_receipt_check_list if
-                  r.receipt_type and r.receipt_type.service_name.value == 'losses'])
+                      r.receipt_type and r.receipt_type.service_name.value == 'losses'])
 
     s = 0
     for r in raw_receipt_check_list:
@@ -1627,8 +1627,20 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
 
     print(s)
 
-
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
                        all_sum=all_sum, payer_ids_sums=payer_ids_sums,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
-                       sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum, losses_sum=losses_sum)
+                       sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum,
+                       losses_sum=losses_sum)
+
+
+class UserInfo(BaseModel):
+    phone: str
+    address: str
+
+
+@router.post('/user-info', )
+async def user_info(user: User = Depends(fastapi_users.get_current_user)) -> UserInfo:
+    personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    pinfo: PersonalInfoDB = personal_infos.items[0]
+    return UserInfo(phone=pinfo.phone, address='{} {}'.format(pinfo.street_name, pinfo.numsite))
