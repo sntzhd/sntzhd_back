@@ -102,3 +102,10 @@ class OldReceiptEntity(BaseModel):
 class ReceiptType(BaseModel):
     service_name: Optional[Services]
     counter_type: Optional[int]
+
+
+class Neighbor(BaseModel):
+    payer_id: str
+    phone: str
+    street_name: str
+    numsite: str

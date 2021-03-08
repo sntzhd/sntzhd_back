@@ -27,7 +27,7 @@ import hashlib
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO, ICheckingNumberDAO)
-from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType
+from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType, Neighbor
 from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
@@ -125,7 +125,7 @@ async def create_receipt(receipt: ReceiptEntity,
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
     if receipt.neighbour:
-        personal_infos = await personal_info_dao.list(0, 1, {'user_id': receipt.neighbour})
+        personal_infos = await personal_info_dao.list(0, 1, {'payer_id': receipt.neighbour})
     else:
         personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
@@ -1634,13 +1634,49 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                        losses_sum=losses_sum)
 
 
+
+
 class UserInfo(BaseModel):
     phone: str
     address: str
+    neighbors: List[Neighbor] = []
 
 
 @router.get('/user-info', )
 async def user_info(user: User = Depends(fastapi_users.get_current_user)) -> UserInfo:
     personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
-    return UserInfo(phone=pinfo.phone, address='{} {}'.format(pinfo.street_name, pinfo.numsite))
+
+    delegats = await delegate_dao.list(0, 1, dict(user_id=user.id))
+
+    neighbors = []
+
+
+    if delegats.count > 0:
+        neighbors = [Neighbor(**(await personal_info_dao.list(0, 100, {'payer_id': payer_id})).items[0].dict()) for payer_id in delegats.items[0].payer_ids]
+
+    return UserInfo(phone=pinfo.phone, address='{} {}'.format(pinfo.street_name, pinfo.numsite), neighbors=neighbors)
+
+
+
+class NewNeighborRQ(BaseModel):
+    phone: str
+
+@router.post('/add-me-new-neighbor')
+async def add_me_new_neighbor(rq: NewNeighborRQ, user: User = Depends(fastapi_users.get_current_user)) -> bool:
+    delegats = await delegate_dao.list(0, 1, dict(user_id=user.id))
+    print(delegats)
+
+
+    personal_infos = await personal_info_dao.list(0, 1, {'phone': rq.phone})
+    pinfo: PersonalInfoDB = personal_infos.items[0]
+    print(pinfo.payer_id)
+
+    if delegats.count == 0:
+        await delegate_dao.create(DelegateDB(user_id=user.id, payer_ids=[pinfo.payer_id]))
+    else:
+        delegat: DelegateDB = delegats.items[0]
+        if pinfo.payer_id not in delegat.payer_ids:
+            delegat.payer_ids.append(pinfo.payer_id)
+            delegate_dao.update(delegat)
+    return True
