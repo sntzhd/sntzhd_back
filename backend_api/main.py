@@ -16,7 +16,8 @@ origins = [
     'https://receipts.ecom.net.ua',
     'http://130.193.59.212',
     'http://84.201.142.192',
-    'https://auditsnt.ru'
+    'https://auditsnt.ru',
+    '130.193.59.212'
 ]
 app.add_middleware(
     CORSMiddleware,
