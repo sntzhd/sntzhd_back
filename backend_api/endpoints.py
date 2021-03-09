@@ -917,6 +917,7 @@ class RawReceiptCheck(BaseModel):
     needHandApprove: bool
     receipt_type: Optional[ReceiptType]
     paid_sum: str
+    title_receipt_hash: str
 
 
 class ConsumptionResp(BaseModel):
@@ -1352,6 +1353,7 @@ class RespChack1c(BaseModel):
     sum_streets_result: Decimal
     membership_fee_sum: Decimal
     losses_sum: Decimal
+    receipt_date: str
 
 
 def get_street_coordinates(street_list: List[Any], street_name: str):
@@ -1450,6 +1452,7 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
     current_paeer_text = None
 
     for line in f:
+        print(line)
         result = re.findall(r'СекцияДокумент', line)
 
         if len(result) > 0:
@@ -1684,5 +1687,5 @@ async def add_me_new_neighbor(rq: NewNeighborRQ, user: User = Depends(fastapi_us
         delegat: DelegateDB = delegats.items[0]
         if pinfo.payer_id not in delegat.payer_ids:
             delegat.payer_ids.append(pinfo.payer_id)
-            delegate_dao.update(delegat)
+            await delegate_dao.update(delegat)
     return True
