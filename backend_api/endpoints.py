@@ -24,11 +24,13 @@ import csv
 import aiofiles
 import hashlib
 import codecs
+import calendar
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO, ICheckingNumberDAO)
-from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType, Neighbor
+from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType, \
+    Neighbor
 from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
@@ -273,10 +275,12 @@ async def create_receipt(receipt: ReceiptEntity,
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
         receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p,
-                                                  el_text if receipt.service_name == 'electricity' else lose_text, receipt.payer_address)
+                                                  el_text if receipt.service_name == 'electricity' else lose_text,
+                                                  receipt.payer_address)
     else:
         receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                el_text if receipt.service_name == 'electricity' else lose_text, receipt.payer_address)
+                                                                el_text if receipt.service_name == 'electricity' else lose_text,
+                                                                receipt.payer_address)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -425,8 +429,6 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 
     payer_id = '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, personal_info.numsite)
     personal_info.payer_id = payer_id
-
-    print(personal_infos, '<<<<<<<<<<<<<<<<<')
 
     if personal_infos.count == 0:
         phone = personal_info.phone
@@ -848,8 +850,10 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
 class AddLossesPrepaidRQ(BaseModel):
     neighbour: Optional[str]
 
+
 @router.post('/add-losses-prepaid')
-async def add_losses_prepaid(rq: AddLossesPrepaidRQ, user: User = Depends(fastapi_users.get_optional_current_active_user)):
+async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
+                             user: User = Depends(fastapi_users.get_optional_current_active_user)):
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
@@ -918,6 +922,7 @@ class RawReceiptCheck(BaseModel):
     receipt_type: Optional[ReceiptType]
     paid_sum: str
     title_receipt_hash: str
+    receipt_date: str
 
 
 class ConsumptionResp(BaseModel):
@@ -1308,7 +1313,7 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
             if payer_id and chack_sum:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=True, payer_id=payer_id,
                                                               needHandApprove=False, receipt_type=receipt_type,
-                                                              paid_sum=pay_sum))
+                                                              paid_sum=pay_sum, ))
             else:
                 raw_receipt_check_list.append(RawReceiptCheck(title=value_str, test_result=False, payer_id=payer_id,
                                                               needHandApprove=True, paid_sum=pay_sum))
@@ -1353,11 +1358,9 @@ class RespChack1c(BaseModel):
     sum_streets_result: Decimal
     membership_fee_sum: Decimal
     losses_sum: Decimal
-    receipt_date: str
 
 
 def get_street_coordinates(street_list: List[Any], street_name: str):
-    print(street_name, '<<street_id')
     for street in street_list:
         if street.get('strName').lower() == street_name:
             return street.get('geometry').get('coordinates')
@@ -1414,6 +1417,12 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
     street_membership_fee_sums_dict = {}
     dict_street_number_houses = {}
 
+    date_time_obj_start = datetime.datetime.strptime(paymPeriod, '%m%Y')
+    first_day, last_day = calendar.monthrange(date_time_obj_start.year, date_time_obj_start.month)
+    date_time_obj_end = datetime.datetime.strptime('{}{}{}'.format(last_day, '0{}'.format(
+        date_time_obj_start.month) if date_time_obj_start.month < 10 else date_time_obj_start.month,
+                                                                   date_time_obj_start.year), '%d%m%Y')
+
     hash_addresses = get_addresses_by_hash()
 
     shouses = dict()
@@ -1452,7 +1461,6 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
     current_paeer_text = None
 
     for line in f:
-        print(line)
         result = re.findall(r'СекцияДокумент', line)
 
         if len(result) > 0:
@@ -1464,6 +1472,16 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
             is_doc = False
 
         if is_doc:
+            if line[:13] == 'ДатаПоступило':
+                receipt_date = datetime.datetime.strptime(line[14:].replace('\n', ''), '%d.%m.%Y')
+                print(receipt_date)
+
+            if line[:17] == 'НазначениеПлатежа':
+                result = hashlib.md5().hexdigest()
+                str2hash = line[18:].replace('\n', '')
+                result = hashlib.md5(str2hash.encode())
+                title_receipt_hash = result.hexdigest()
+
             if line[:11] == 'Плательщик1':
                 current_paeer_text = line[12:]
                 if len(re.findall(r'СНТ', current_paeer_text)) > 0:
@@ -1508,19 +1526,28 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
                     check_sum_status = check_sum(paid_sum, line, receipt_type, current_tariff)
 
                     if check_sum_status:
-                        raw_receipt_check_list.append(
-                            RawReceiptCheck(title=line, test_result=True, payer_id=payer_id,
-                                            needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum))
+                        if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
+                            raw_receipt_check_list.append(
+                                RawReceiptCheck(title=line, test_result=True, payer_id=payer_id,
+                                                title_receipt_hash=title_receipt_hash,
+                                                needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                receipt_date=str(receipt_date)))
                     else:
-                        raw_receipt_check_list.append(
-                            RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                            needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
+                        if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
+                            raw_receipt_check_list.append(
+                                RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
+                                                title_receipt_hash=title_receipt_hash,
+                                                needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                receipt_date=str(receipt_date)))
                 else:
                     try:
                         int(payer_id[5:9])
-                        raw_receipt_check_list.append(
-                            RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                            needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum))
+                        if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
+                            raw_receipt_check_list.append(
+                                RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
+                                                title_receipt_hash=title_receipt_hash,
+                                                needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                receipt_date=str(receipt_date)))
                     except ValueError:
                         pass
 
@@ -1613,9 +1640,11 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
         set(all_payer_ids)]
 
     for uc in undefound_clients:
-        raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
+        if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
+            raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
                                                       needHandApprove=True, receipt_type=receipt_type,
-                                                      paid_sum=uc.paid_sum))
+                                                      receipt_date=str(receipt_date),
+                                                      paid_sum=uc.paid_sum, title_receipt_hash=title_receipt_hash))
 
     sum_streets_result = sum(sum_street.general_sum for sum_street in sum_streets)
 
@@ -1634,15 +1663,11 @@ async def parser_1c(paymPeriod: str, name_alias: str = 'sntzhd', input_row: str 
         if r.receipt_type and r.receipt_type.service_name.value == 'losses':
             s += Decimal(r.paid_sum)
 
-    print(s)
-
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
                        all_sum=all_sum, payer_ids_sums=payer_ids_sums,
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
                        sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum,
                        losses_sum=losses_sum)
-
-
 
 
 class UserInfo(BaseModel):
@@ -1660,22 +1685,21 @@ async def user_info(user: User = Depends(fastapi_users.get_current_user)) -> Use
 
     neighbors = []
 
-
     if delegats.count > 0:
-        neighbors = [Neighbor(**(await personal_info_dao.list(0, 100, {'payer_id': payer_id})).items[0].dict()) for payer_id in delegats.items[0].payer_ids]
+        neighbors = [Neighbor(**(await personal_info_dao.list(0, 100, {'payer_id': payer_id})).items[0].dict()) for
+                     payer_id in delegats.items[0].payer_ids]
 
     return UserInfo(phone=pinfo.phone, address='{} {}'.format(pinfo.street_name, pinfo.numsite), neighbors=neighbors)
-
 
 
 class NewNeighborRQ(BaseModel):
     phone: str
 
+
 @router.post('/add-me-new-neighbor')
 async def add_me_new_neighbor(rq: NewNeighborRQ, user: User = Depends(fastapi_users.get_current_user)) -> bool:
     delegats = await delegate_dao.list(0, 1, dict(user_id=user.id))
     print(delegats)
-
 
     personal_infos = await personal_info_dao.list(0, 1, {'phone': rq.phone})
     pinfo: PersonalInfoDB = personal_infos.items[0]
