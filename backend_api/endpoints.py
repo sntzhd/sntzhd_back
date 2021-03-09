@@ -23,6 +23,7 @@ from decimal import Decimal, ROUND_FLOOR
 import csv
 import aiofiles
 import hashlib
+import codecs
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
@@ -120,7 +121,6 @@ async def delegate_confirmation_rights(receipt: ReceiptEntity) -> CreateReceiptR
 @router.post('/create-receipt', description='Создание квитанции')
 async def create_receipt(receipt: ReceiptEntity,
                          user: User = Depends(fastapi_users.get_optional_current_active_user)) -> CreateReceiptResponse:
-    print(user, '<< CREADER R USER')
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
@@ -132,6 +132,7 @@ async def create_receipt(receipt: ReceiptEntity,
 
     receipt.first_name = pinfo.first_name
     receipt.last_name = pinfo.last_name
+    print('LNNNNNNNNNNNNNNNNNNNNNNNNNNN', pinfo.last_name)
     receipt.grand_name = pinfo.grand_name
     receipt.street = pinfo.street_name
     receipt.payer_address = '{}, {}'.format(pinfo.street_name, pinfo.numsite)
@@ -166,12 +167,10 @@ async def create_receipt(receipt: ReceiptEntity,
     #    raise HTTPException(status_code=500, detail='must_login')
 
     if old_receipts.count > 0:
-        print(old_receipts.items[0])
 
         if receipt.checking_number:
             checking_numbers = await checking_number_dao.list(0, 1, {'value': receipt.checking_number,
                                                                      'payer_id': payer_id})
-            print('||||||||||||||||||||||||||||||||||||||||', user)
             if user:
                 delegate_result = await delegate_dao.list(0, 1, {'user_id': user.id})
 
@@ -264,7 +263,7 @@ async def create_receipt(receipt: ReceiptEntity,
 
     # receipt.payer_address = '{} {}'.format(receipt.street, receipt.payer_address)
     last_name_only = receipt.last_name
-    receipt.last_name = '{} {}. {}.'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name)
+    receipt.last_name = '{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name)
 
     receipt.purpose = '{} '.format('|Phone={}'.format(pinfo.phone))
 
@@ -273,12 +272,11 @@ async def create_receipt(receipt: ReceiptEntity,
 
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
-        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p, receipt.payer_address,
-                                                  el_text if receipt.service_name == 'electricity' else lose_text)
+        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p,
+                                                  el_text if receipt.service_name == 'electricity' else lose_text, receipt.payer_address)
     else:
         receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                receipt.payer_address,
-                                                                el_text if receipt.service_name == 'electricity' else lose_text)
+                                                                el_text if receipt.service_name == 'electricity' else lose_text, receipt.payer_address)
 
     qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
                          k in response_keys.keys()])
@@ -755,6 +753,7 @@ def payment_no_double_destination_checker(value: str):
 
 class MembershipReceiptEntity(BaseModel):
     year: str
+    neighbour: Optional[str]
 
 
 @router.post('/add-membership-fee')
@@ -768,7 +767,10 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     if alias == None:
         raise HTTPException(status_code=500, detail='Не верный alias')
 
-    personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    if rq.neighbour:
+        personal_infos = await personal_info_dao.list(0, 1, {'payer_id': rq.neighbour})
+    else:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
     if rq.year == '2021h1':
@@ -843,8 +845,11 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                  alias_info=AliasInfoResp(**alias))
 
 
+class AddLossesPrepaidRQ(BaseModel):
+    neighbour: Optional[str]
+
 @router.post('/add-losses-prepaid')
-async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_current_active_user)):
+async def add_losses_prepaid(rq: AddLossesPrepaidRQ, user: User = Depends(fastapi_users.get_optional_current_active_user)):
     if user == None:
         raise HTTPException(status_code=500, detail='Необходима автаризация')
 
@@ -853,7 +858,10 @@ async def add_losses_prepaid(user: User = Depends(fastapi_users.get_optional_cur
     if alias == None:
         raise HTTPException(status_code=500, detail='Не верный alias')
 
-    personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    if rq.neighbour:
+        personal_infos = await personal_info_dao.list(0, 1, {'payer_id': rq.neighbour})
+    else:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
     receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
@@ -1211,8 +1219,6 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
     async with aiofiles.open('BBBB.csv', 'wb') as out_file:
         content = await file.read()  # async read
         await out_file.write(content)
-
-    import codecs
 
     f = codecs.open('BBBB.csv', 'r', 'cp1251')
     u = f.read()  # now the contents have been transformed to a Unicode string
