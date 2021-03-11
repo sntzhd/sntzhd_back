@@ -29,10 +29,11 @@ from enum import Enum
 
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
-                                    IDelegateEventDAO, ICheckingNumberDAO)
+                                    IDelegateEventDAO, ICheckingNumberDAO, IDelegatActionDAO)
 from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType, \
     Neighbor
-from backend_api.db.receipts.model import ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB
+from backend_api.db.receipts.model import (ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB,
+                                           DelegatActionDB)
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
 from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
@@ -58,6 +59,7 @@ bonus_history_dao = instance(IBonusHistoryDAO)
 delegate_dao = instance(IDelegateDAO)
 delegate_event_dao = instance(IDelegateEventDAO)
 checking_number_dao = instance(ICheckingNumberDAO)
+delegat_action_dao: IDelegatActionDAO = instance(IDelegatActionDAO)
 
 response_keys = dict(name='Name', personal_acc='PersonalAcc', bank_name='BankName', bic='BIC', corresp_acc='CorrespAcc',
                      kpp='KPP', payee_inn='PayeeINN', last_name='lastName', payer_address='payerAddress',
@@ -311,6 +313,8 @@ async def create_receipt(receipt: ReceiptEntity,
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=last_name_only))
+    if receipt.neighbour:
+        await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=receipt.neighbour, receipt_id=id_))
     receipt = await receipt_dao.get(id_)
 
     try:
@@ -843,6 +847,9 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=receipt.last_name))
 
+    if rq.neighbour:
+        await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
+
     receipt = await receipt_dao.get(id_)
 
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
@@ -910,6 +917,8 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=receipt.last_name))
 
+    if rq.neighbour:
+        await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
     receipt = await receipt_dao.get(id_)
 
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,

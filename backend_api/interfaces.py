@@ -64,3 +64,6 @@ class IProblemDAO(IGenericDAO):
 
 class IVoteDAO(IGenericDAO):
     pass
+
+class IDelegatActionDAO(IGenericDAO):
+    pass

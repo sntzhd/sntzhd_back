@@ -75,3 +75,9 @@ class CheckingNumberDB(BaseDBModel):
     value: str
     payer_id: str
     created_date: datetime = Field(default_factory=now())
+
+
+class DelegatActionDB(BaseDBModel):
+    delegated_id: UUID4
+    payer_id: str
+    receipt_id: UUID4
