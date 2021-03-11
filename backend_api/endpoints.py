@@ -78,7 +78,6 @@ months = {
     12: 'Декабрь'
 }
 
-
 r_streets = requests.get(url_streets)
 raw_street_list = r_streets.json()['sntList'][0]['streetList']
 
@@ -1354,6 +1353,9 @@ class UndefoundClient(BaseModel):
     payer_id: str
     paid_sum: str
 
+class ExpensePayItem(BaseModel):
+    title: str
+    pay_sum: Decimal
 
 class RespChack1c(BaseModel):
     raw_receipt_check_list: List[RawReceiptCheck]
@@ -1367,6 +1369,9 @@ class RespChack1c(BaseModel):
     membership_fee_sum: Decimal
     losses_sum: Decimal
     expense_rows_count: int
+    expense_list: List[ExpensePayItem]
+    expense_sum: Decimal
+    undefound_clients_count: int
 
 
 def get_street_coordinates(street_list: List[Any], street_name: str):
@@ -1409,8 +1414,9 @@ def get_losses_sum_to_payer_id(payer_id: str, raw_receipt_check_list: List[RawRe
     return result
 
 
+StreetNames = Enum('StreetNames',
+                   [(str(street.get('strID')), street.get('strName').lower()) for street in raw_street_list], start=1)
 
-StreetNames = Enum('StreetNames', [(str(street.get('strID')), street.get('strName').lower()) for street in raw_street_list], start=1)
 
 def get_street_name_by_id(street_id: str) -> str:
     for street in raw_street_list:
@@ -1418,8 +1424,10 @@ def get_street_name_by_id(street_id: str) -> str:
             return street.get('strName')
     return 'Другие'
 
+
 @router.post('parser-1c')
-async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_alias: str = 'sntzhd', input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
+async def parser_1c(select_street: StreetNames = None, paymPeriod: str = None, name_alias: str = 'sntzhd',
+                    input_row: str = None, file: UploadFile = File(None)) -> RespChack1c:
     dict_streets = dict()
     key_id_dict_streets = dict()
     paid_sum = None
@@ -1434,14 +1442,14 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
     street_membership_fee_sums_dict = {}
     dict_street_number_houses = {}
     expense_rows_count = 0
-
+    expense_list = []
 
     if paymPeriod:
         date_time_obj_start = datetime.datetime.strptime(paymPeriod, '%m%Y')
         first_day, last_day = calendar.monthrange(date_time_obj_start.year, date_time_obj_start.month)
         date_time_obj_end = datetime.datetime.strptime('{}{}{}'.format(last_day, '0{}'.format(
             date_time_obj_start.month) if date_time_obj_start.month < 10 else date_time_obj_start.month,
-                                                                   date_time_obj_start.year), '%d%m%Y')
+                                                                       date_time_obj_start.year), '%d%m%Y')
 
     hash_addresses = get_addresses_by_hash()
 
@@ -1493,7 +1501,6 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
 
         if is_doc:
 
-
             if line[:13] == 'ДатаПоступило':
                 receipt_date = datetime.datetime.strptime(line[14:].replace('\n', ''), '%d.%m.%Y')
 
@@ -1507,10 +1514,13 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
                 if len(re.findall(r'СНТ "ЖЕЛЕЗНОДОРОЖНИК"', current_paeer_text)) > 0:
                     if len(line[12:]) == 22:
                         expense_rows_count += 1
+                        expense_list.append(ExpensePayItem(title=current_paeer_text, pay_sum=paid_sum))
                         continue
 
-                if current_paeer_text.replace('\n', '') == 'НО Садоводческое некоммерческое товарищество Железнодорожник':
+                if current_paeer_text.replace('\n',
+                                              '') == 'НО Садоводческое некоммерческое товарищество Железнодорожник':
                     expense_rows_count += 1
+                    expense_list.append(ExpensePayItem(title=current_paeer_text, pay_sum=paid_sum))
                     continue
 
             if line[:5] == 'Сумма':
@@ -1542,6 +1552,10 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
                             continue
                     if payer_id == None:
                         street_sums_dict['Другие'] += Decimal(paid_sum)
+                        undefound_clients.append(UndefoundClient(title=line, paid_sum=paid_sum,
+                                                                 payer_id=hashlib.sha256(
+                                                                     current_paeer_text.encode(
+                                                                         'utf-8')).hexdigest()))
                         continue
 
                 chacking_rows_count += 1
@@ -1556,13 +1570,14 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
                             if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
                                 raw_receipt_check_list.append(
                                     RawReceiptCheck(title=line, test_result=True, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash,
-                                                needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum,
-                                                receipt_date=str(receipt_date)))
+                                                    title_receipt_hash=title_receipt_hash,
+                                                    needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                    receipt_date=str(receipt_date)))
                         else:
                             raw_receipt_check_list.append(
                                 RawReceiptCheck(title=line, test_result=True, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash, street_name=get_street_name_by_id(payer_id[5:9]),
+                                                title_receipt_hash=title_receipt_hash,
+                                                street_name=get_street_name_by_id(payer_id[5:9]),
                                                 needHandApprove=False, receipt_type=receipt_type, paid_sum=paid_sum,
                                                 receipt_date=str(receipt_date)))
                     else:
@@ -1570,13 +1585,15 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
                             if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
                                 raw_receipt_check_list.append(
                                     RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash, street_name=get_street_name_by_id(payer_id[5:9]),
-                                                needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
-                                                receipt_date=str(receipt_date)))
+                                                    title_receipt_hash=title_receipt_hash,
+                                                    street_name=get_street_name_by_id(payer_id[5:9]),
+                                                    needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                    receipt_date=str(receipt_date)))
                         else:
                             raw_receipt_check_list.append(
                                 RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash, street_name=get_street_name_by_id(payer_id[5:9]),
+                                                title_receipt_hash=title_receipt_hash,
+                                                street_name=get_street_name_by_id(payer_id[5:9]),
                                                 needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
                                                 receipt_date=str(receipt_date)))
                 else:
@@ -1586,13 +1603,15 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
                             if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
                                 raw_receipt_check_list.append(
                                     RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash, street_name=get_street_name_by_id(payer_id[5:9]),
-                                                needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
-                                                receipt_date=str(receipt_date)))
+                                                    title_receipt_hash=title_receipt_hash,
+                                                    street_name=get_street_name_by_id(payer_id[5:9]),
+                                                    needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
+                                                    receipt_date=str(receipt_date)))
                         else:
                             raw_receipt_check_list.append(
                                 RawReceiptCheck(title=line, test_result=False, payer_id=payer_id,
-                                                title_receipt_hash=title_receipt_hash, street_name=get_street_name_by_id(payer_id[5:9]),
+                                                title_receipt_hash=title_receipt_hash,
+                                                street_name=get_street_name_by_id(payer_id[5:9]),
                                                 needHandApprove=True, receipt_type=receipt_type, paid_sum=paid_sum,
                                                 receipt_date=str(receipt_date)))
                     except ValueError:
@@ -1690,9 +1709,10 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
         if paymPeriod:
             if receipt_date > date_time_obj_start and receipt_date < date_time_obj_end:
                 raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
-                                                      needHandApprove=True, receipt_type=receipt_type,
-                                                      receipt_date=str(receipt_date),
-                                                      paid_sum=uc.paid_sum, title_receipt_hash=title_receipt_hash))
+                                                              needHandApprove=True, receipt_type=receipt_type,
+                                                              receipt_date=str(receipt_date),
+                                                              paid_sum=uc.paid_sum,
+                                                              title_receipt_hash=title_receipt_hash))
         else:
             raw_receipt_check_list.append(RawReceiptCheck(title=uc.title, test_result=False, payer_id=uc.payer_id,
                                                           needHandApprove=True, receipt_type=receipt_type,
@@ -1717,10 +1737,11 @@ async def parser_1c(select_street: StreetNames, paymPeriod: str = None, name_ali
             s += Decimal(r.paid_sum)
 
     return RespChack1c(raw_receipt_check_list=raw_receipt_check_list, undefound_clients=undefound_clients,
-                       all_sum=all_sum, payer_ids_sums=payer_ids_sums,
+                       all_sum=all_sum, payer_ids_sums=payer_ids_sums, undefound_clients_count=len(undefound_clients),
                        all_rows_count=all_rows_count, chacking_rows_count=chacking_rows_count, sum_streets=sum_streets,
                        sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum,
-                       losses_sum=losses_sum, expense_rows_count=expense_rows_count)
+                       losses_sum=losses_sum, expense_rows_count=expense_rows_count, expense_list=expense_list,
+                       expense_sum=sum([expense.pay_sum for expense in expense_list]))
 
 
 class UserInfo(BaseModel):
