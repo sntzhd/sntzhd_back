@@ -41,14 +41,18 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
 
     if user.is_superuser:
         filters = dict()
+        problems = await problem_dao.list(skip, HISTORY_PAGE_SIZE, filters)
+        return ListResponse(items=problems.items, count=problems.count)
     else:
-        filters = dict(user_id=user.id)
-    problems = await problem_dao.list(skip, HISTORY_PAGE_SIZE, filters)
-    return ListResponse(items=problems.items, count=problems.count)
+        filters = {'$or': [{'user_id': user.id}, {'problem_type': 'public'}]}
+        problems = await problem_dao.list(skip, HISTORY_PAGE_SIZE, filters)
+        return ListResponse(items=problems.items, count=problems.count)
+
 
 class VoteRq(BaseModel):
     problem_id: UUID4
     importance: Importance
+
 
 @router.post('/to-vote', description='Проголосовать')
 async def to_vote(rq: VoteRq, user=Depends(fastapi_users.get_current_user)):

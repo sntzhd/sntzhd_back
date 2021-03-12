@@ -25,8 +25,9 @@ class RunConfigBackendAPI(BaseSettings):
         env_file = '.env'
 
 class RemoteServiceConfig(BaseSettings):
-    default_data_url = 'https://next.json-generator.com/api/json/get/EymrGfgTK';
-    street_list_url = 'https://next.json-generator.com/api/json/get/VyJpUsP-q';
+    default_data_url = 'https://next.json-generator.com/api/json/get/EymrGfgTK'
+    street_list_url = 'https://next.json-generator.com/api/json/get/VyJpUsP-q'
+    address_by_hash = 'https://next.json-generator.com/api/json/get/NypUu-4X9'
 
 mongo_config = MongoConfig()
 secret_config = SecretConfig()

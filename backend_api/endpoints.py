@@ -520,6 +520,7 @@ async def upload_image(file: UploadFile = File(...)) -> str:
     response = requests.post(api, data=payload, headers=headers)
     try:
         data = response.json()
+        print(data)
         return data.get('response').get('unique')
     except requests.exceptions.RequestException:
         print(response.text)
