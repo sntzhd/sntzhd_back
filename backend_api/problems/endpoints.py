@@ -1,12 +1,14 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel
 from typing import List, Any
+import requests
 
 from backend_api.interfaces import IProblemDAO, IVoteDAO
 from backend_api.db.problems.models import ProblemTypes, TagNames, Statuses, ProblemDB, Importance, VoteDB
 from backend_api.services.auth_service.endpoints import fastapi_users
 from backend_api.utils import instance
 from backend_api.entities import ListResponse
+from config import remote_service_config
 
 HISTORY_PAGE_SIZE = 20
 
@@ -66,3 +68,11 @@ async def to_vote(rq: VoteRq, user=Depends(fastapi_users.get_current_user)):
         vote = votes.items[0]
         vote.importance = rq.importance
         await vote_dao.update(vote)
+
+
+@router.get('/coordinates-by-street-id', )
+async def coordinates_by_street_id(street_id: str) -> List[str]:
+    r = requests.get(remote_service_config.street_list_url)
+    for street in r.json().get('sntList')[0].get('streetList'):
+        if str(street.get('strID')) == street_id:
+            return street.get('geometry').get('coordinates')[0]

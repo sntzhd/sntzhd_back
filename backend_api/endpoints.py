@@ -30,8 +30,9 @@ from enum import Enum
 from backend_api.utils import instance, get_alias_info, get_street_id, get_streets
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO, ICheckingNumberDAO, IDelegatActionDAO)
-from backend_api.entities import ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType, \
-    Neighbor
+from backend_api.entities import (ListResponse, ReceiptEntity, PersonalInfoEntity, OldReceiptEntity, ReceiptType,
+                                  Neighbor, RawReceiptCheck, UndefoundClient, RespChack1cV2, UndefinedClient,
+                                  RawReceipt, StreetSumResp, PayerIdSum, ExpensePayItem)
 from backend_api.db.receipts.model import (ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB,
                                            DelegatActionDB)
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
@@ -46,6 +47,9 @@ from config import secret_config
 from backend_api.parser_utils import check_sum, get_addresses_by_hash
 from backend_api.static_data import street_aliases, url_hauses_in_streets
 from backend_api.static_data import aliases, url_streets
+from backend_api.parser_v2_utils import (PayerIdChecker, raw_receipts_creator_by_file, make_houses_on_street,
+                                         make_payments_on_street, make_street_losses_sums_dict,
+                                         make_street_membership_fee_sums_dict)
 
 router = APIRouter()
 
@@ -314,7 +318,8 @@ async def create_receipt(receipt: ReceiptEntity,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
                                              last_name_only=last_name_only))
     if receipt.neighbour:
-        await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=receipt.neighbour, receipt_id=id_))
+        await delegat_action_dao.create(
+            DelegatActionDB(delegated_id=user.id, payer_id=receipt.neighbour, receipt_id=id_))
     receipt = await receipt_dao.get(id_)
 
     try:
@@ -930,18 +935,6 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                                  alias_info=AliasInfoResp(**alias))
 
 
-class RawReceiptCheck(BaseModel):
-    title: str
-    test_result: bool
-    payer_id: Optional[str]
-    needHandApprove: bool
-    receipt_type: Optional[ReceiptType]
-    paid_sum: str
-    title_receipt_hash: str
-    receipt_date: str
-    street_name: str
-
-
 class ConsumptionResp(BaseModel):
     r1: Optional[Decimal]
     r2: Optional[Decimal]
@@ -1149,12 +1142,6 @@ def old_make_payer_id(value: str, sreets_str: str, alias: Dict[str, Any], dict_s
                     pass
 
 
-def get_coincidence_street(param: str, dict_streets: Dict[str, Any]):
-    for k in dict_streets.keys():
-        if len(re.findall(r'{}'.format(k), param.lower())) > 0:
-            return dict(street_name=k, street_number=dict_streets.get(k))
-
-
 def perhaps_house_number(value: str, sreet_name: str):
     space_params = value.split(' ')
     comma_params = value.split(',')
@@ -1340,33 +1327,6 @@ async def csv_parser(name_alias: str = 'sntzhd', input_row: str = None, file: Up
     return raw_receipt_check_list
 
 
-class StreetSumResp(BaseModel):
-    street_name: str
-    general_sum: Decimal
-    electricity_sum: Decimal
-    losses_sum: Decimal
-    memberfee_sum: Decimal
-    paymPeriod: Optional[str]
-    street_home_qty: Optional[int]
-    street_payment_qty: Optional[int]
-    coordinates: List[List[str]] = []
-
-
-class PayerIdSum(BaseModel):
-    payer_id: str
-    general_sum: Decimal
-    losses_sum: Decimal
-
-
-class UndefoundClient(BaseModel):
-    title: str
-    payer_id: str
-    paid_sum: str
-
-class ExpensePayItem(BaseModel):
-    title: str
-    pay_sum: Decimal
-
 class RespChack1c(BaseModel):
     raw_receipt_check_list: List[RawReceiptCheck]
     undefound_clients: List[UndefoundClient]
@@ -1544,6 +1504,8 @@ async def parser_1c(select_street: StreetNames = None, paymPeriod: str = None, n
 
                 if payer_id == None:
                     for hash_address in hash_addresses:
+                        print(hashlib.sha256(
+                            current_paeer_text.encode('utf-8')).hexdigest())
                         if hash_address.get('payer_id') == hashlib.sha256(
                                 current_paeer_text.encode('utf-8')).hexdigest():
                             try:
@@ -1797,3 +1759,106 @@ async def add_me_new_neighbor(rq: NewNeighborRQ, user: User = Depends(fastapi_us
             delegat.payer_ids.append(pinfo.payer_id)
             await delegate_dao.update(delegat)
     return True
+
+
+@router.post('parser-1cV2')
+async def parser_1c(select_street: StreetNames = None, paymPeriod: str = None, name_alias: str = 'sntzhd',
+                    input_row: str = None, file: UploadFile = File(None)) -> RespChack1cV2:
+    receipt_check_list: List[RawReceiptCheck] = []
+    undefined_client_list: List[UndefinedClient] = []
+    street_sums_dict = {'Другие': 0}
+    expense_list: List[ExpensePayItem] = []
+    expense_rows_count = 0
+
+    async with aiofiles.open('1c_document_utfSAVE.txt', 'wb') as out_file:
+        content = await file.read()
+        await out_file.write(content)
+
+    raw_receipts = raw_receipts_creator_by_file()
+
+    all_sum = sum([raw_receipt.amount for raw_receipt in raw_receipts])
+
+    payer_id_checker = PayerIdChecker()
+
+    for raw_receipt in raw_receipts:
+        if raw_receipt.payer == 'СНТ "ЖЕЛЕЗНОДОРОЖНИК"':
+            expense_rows_count += 1
+            expense_list.append(ExpensePayItem(title=raw_receipt.payer, pay_sum=raw_receipt.amount))
+            continue
+
+        if raw_receipt.payer.replace('\n',
+                                     '') == 'НО Садоводческое некоммерческое товарищество Железнодорожник':
+            expense_rows_count += 1
+            expense_list.append(ExpensePayItem(title=raw_receipt.payer, pay_sum=raw_receipt.amount))
+            continue
+
+        payer_id = payer_id_checker.get_payer_id(raw_receipt.purpose_payment)
+
+        if payer_id_checker.check_payer_id(payer_id):
+            result = hashlib.md5(raw_receipt.purpose_payment.encode())
+            title_receipt_hash = result.hexdigest()
+            receipt_check_list.append(RawReceiptCheck(title=raw_receipt.purpose_payment, test_result=False,
+                                                      payer_id=payer_id, needHandApprove=True,
+                                                      receipt_type=get_receipt_type_by_1c(raw_receipt.purpose_payment),
+                                                      paid_sum=raw_receipt.amount,
+                                                      title_receipt_hash=title_receipt_hash,
+                                                      receipt_date=raw_receipt.date_received,
+                                                      street_name=payer_id_checker.get_street_name_by_id(payer_id)))
+            if street_sums_dict.get(payer_id_checker.get_street_name_by_id(payer_id)):
+                street_name = payer_id_checker.get_street_name_by_id(payer_id)
+                current_sum = street_sums_dict.get(payer_id_checker.get_street_name_by_id(payer_id))
+                street_sums_dict.update({street_name: (current_sum + raw_receipt.amount)})
+            else:
+                street_name = payer_id_checker.get_street_name_by_id(payer_id)
+                street_sums_dict.update({street_name: raw_receipt.amount})
+        else:
+            current_sum = street_sums_dict.get('Другие')
+            street_sums_dict.update({'Другие': (current_sum + raw_receipt.amount)})
+            undefined_client_list.append(
+                UndefinedClient(title=raw_receipt.title_receipt_hash, paid_sum=raw_receipt.amount,
+                                payer_id=hashlib.sha256(
+                                    raw_receipt.payer.encode(
+                                        'utf-8')).hexdigest()))
+
+    houses_on_street = make_houses_on_street(receipt_check_list)
+    payments_on_street = make_payments_on_street(receipt_check_list)
+    street_losses_sums_dict = make_street_losses_sums_dict(receipt_check_list)
+    street_membership_fee_sums_dict = make_street_membership_fee_sums_dict(receipt_check_list)
+
+    all_payer_ids = [r.payer_id for r in receipt_check_list]
+    payer_ids_sums = [
+        PayerIdSum(payer_id=payer_id, losses_sum=get_losses_sum_to_payer_id(payer_id, receipt_check_list),
+                   general_sum=get_sum_to_payer_id(payer_id, receipt_check_list)) for payer_id in
+        set(all_payer_ids)]
+
+    street_list = payer_id_checker.get_street_list()
+
+    sum_streets = [StreetSumResp(street_name=k, coordinates=get_street_coordinates(street_list, k),
+                                 street_home_qty=len(houses_on_street.get(k)) if houses_on_street.get(k) else 0,
+                                 street_payment_qty=payments_on_street.get(k),
+                                 electricity_sum=(street_sums_dict.get(k) - (
+                                     street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0) - (
+                                                      street_membership_fee_sums_dict.get(
+                                                          k) if street_membership_fee_sums_dict.get(k) else 0)),
+                                 losses_sum=street_losses_sums_dict.get(k) if street_losses_sums_dict.get(k) else 0,
+                                 memberfee_sum=street_membership_fee_sums_dict.get(
+                                     k) if street_membership_fee_sums_dict.get(k) else 0,
+                                 paymPeriod=paymPeriod,
+                                 general_sum=street_sums_dict.get(k)) for k in street_sums_dict.keys()]
+
+    sum_streets_result = sum(sum_street.general_sum for sum_street in sum_streets)
+
+    membership_fee_sum = sum([Decimal(r.paid_sum) for r in receipt_check_list if
+                              r.receipt_type and r.receipt_type.service_name.value == 'membership_fee'])
+    losses_sum = sum([Decimal(r.paid_sum) for r in receipt_check_list if
+                      r.receipt_type and r.receipt_type.service_name.value == 'losses'])
+
+    expense_sum = sum([expense.pay_sum for expense in expense_list])
+
+    return RespChack1cV2(all_rows_count=len(raw_receipts), all_sum=all_sum, undefined_clients=undefined_client_list,
+                         undefined_clients_count=len(undefined_client_list), raw_receipt_check_list=receipt_check_list,
+                         sum_streets=sum_streets, chacking_rows_count=len(receipt_check_list),
+                         payer_ids_sums=payer_ids_sums,
+                         sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum,
+                         losses_sum=losses_sum, undefound_clients_count=len(undefined_client_list),
+                         expense_rows_count=expense_rows_count, expense_list=expense_list, expense_sum=expense_sum)

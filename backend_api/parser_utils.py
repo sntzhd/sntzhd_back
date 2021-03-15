@@ -3,6 +3,7 @@ import re
 import requests
 
 from backend_api.entities import ReceiptType
+from config import remote_service_config
 
 def check_sum(paid_sum: Decimal, value: str, receipt_type: ReceiptType, current_tariff):
 
@@ -79,5 +80,5 @@ def check_sum(paid_sum: Decimal, value: str, receipt_type: ReceiptType, current_
 
 
 def get_addresses_by_hash():
-    r = requests.get('https://next.json-generator.com/api/json/get/NJire3gbc')
+    r = requests.get(remote_service_config.address_by_hash)
     return r.json()

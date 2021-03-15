@@ -109,3 +109,76 @@ class Neighbor(BaseModel):
     phone: str
     street_name: str
     numsite: str
+
+
+class RawReceiptCheck(BaseModel):
+    title: str
+    test_result: bool
+    payer_id: Optional[str]
+    needHandApprove: bool
+    receipt_type: Optional[ReceiptType]
+    paid_sum: Decimal
+    title_receipt_hash: str
+    receipt_date: datetime
+    street_name: str
+
+
+class UndefoundClient(BaseModel):
+    title: str
+    payer_id: str
+    paid_sum: str
+
+
+class UndefinedClient(BaseModel):
+    title: str
+    payer_id: str
+    paid_sum: Decimal
+
+
+class StreetSumResp(BaseModel):
+    street_name: str
+    general_sum: Decimal
+    electricity_sum: Decimal
+    losses_sum: Decimal
+    memberfee_sum: Decimal
+    paymPeriod: Optional[str]
+    street_home_qty: Optional[int]
+    street_payment_qty: Optional[int]
+    coordinates: List[List[str]] = []
+
+
+class PayerIdSum(BaseModel):
+    payer_id: str
+    general_sum: Decimal
+    losses_sum: Decimal
+
+
+class ExpensePayItem(BaseModel):
+    title: str
+    pay_sum: Decimal
+
+
+class RespChack1cV2(BaseModel):
+    raw_receipt_check_list: List[RawReceiptCheck]
+    undefined_clients: List[UndefinedClient]
+    undefined_clients_count: int
+    all_rows_count: int
+    chacking_rows_count: int
+    all_sum: Decimal
+    sum_streets: List[StreetSumResp]
+    payer_ids_sums: List[PayerIdSum]
+    sum_streets_result: Decimal
+    membership_fee_sum: Decimal
+    losses_sum: Decimal
+    expense_rows_count: int
+    expense_list: List[ExpensePayItem]
+    expense_sum: Decimal
+    undefound_clients_count: int
+
+
+class RawReceipt(BaseModel):
+    date_received: Optional[datetime]
+    purpose_payment: str
+    payer: str
+    amount: Decimal
+    title_receipt_hash: str
