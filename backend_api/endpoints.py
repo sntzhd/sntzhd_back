@@ -1410,7 +1410,7 @@ async def user_info(user: User = Depends(fastapi_users.get_current_user)) -> Use
     delegats = await delegate_dao.list(0, 1, dict(user_id=user.id))
 
     neighbors = []
-
+    print(delegats.items[0])
     if delegats.count > 0:
         neighbors = [Neighbor(**(await personal_info_dao.list(0, 100, {'payer_id': payer_id})).items[0].dict()) for
                      payer_id in delegats.items[0].payer_ids]

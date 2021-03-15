@@ -37,6 +37,12 @@ async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_u
     await problem_dao.create(ProblemDB(**rq.dict(), status='new', responsible=user.id, user_id=user.id))
 
 
+class ProblemResp(ProblemDB):
+    important: int
+    neutral: int
+    not_important: int
+
+
 @router.get('/problems', description='Проблемы')
 async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
@@ -48,7 +54,28 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     else:
         filters = {'$or': [{'user_id': user.id}, {'problem_type': 'public'}]}
         problems = await problem_dao.list(skip, HISTORY_PAGE_SIZE, filters)
-        return ListResponse(items=problems.items, count=problems.count)
+
+        resp_problems: List[ProblemResp] = []
+
+        for problem in problems.items:
+            filters = dict(problem_id=problem.id)
+            important = 0
+            neutral = 0
+            not_important = 0
+            votes = await vote_dao.list(0, 1, filters)
+            for vote in votes.items:
+                if vote.importance.value == 'important':
+                    important += 1
+
+                if vote.importance.value == 'neutral':
+                    neutral += 1
+
+                if vote.importance.value == 'not_important':
+                    not_important += 1
+
+            resp_problems.append(ProblemResp(**problem.dict(), important=important, neutral=neutral, not_important=not_important))
+
+        return ListResponse(items=resp_problems, count=problems.count)
 
 
 class VoteRq(BaseModel):
@@ -58,7 +85,7 @@ class VoteRq(BaseModel):
 
 @router.post('/to-vote', description='Проголосовать')
 async def to_vote(rq: VoteRq, user=Depends(fastapi_users.get_current_user)):
-    filters = dict(user_id=user.id)
+    filters = dict(user_id=user.id, problem_id=rq.problem_id)
 
     votes = await vote_dao.list(0, 1, filters)
 
