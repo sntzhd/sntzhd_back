@@ -55,8 +55,10 @@ def configure_routers():
 
     from backend_api.endpoints import router
     from backend_api.problems.endpoints import router as router_problems
+    from backend_api.delegates.endpoints import router as router_delegates
 
     app.include_router(router, prefix='/receipts', tags=["receipts"])
     app.include_router(router_problems, prefix='/problems', tags=["problems"])
+    app.include_router(router_delegates, prefix='/delegates', tags=["delegates"])
 
 configure_routers()
