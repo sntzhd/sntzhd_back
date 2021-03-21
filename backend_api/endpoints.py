@@ -633,11 +633,12 @@ class SendValidationSmsRq(BaseModel):
 
 @router.post('/sendValidationSms')
 async def send_validation_sms(rq: SendValidationSmsRq) -> str:
-    if len(re.findall(r'@', rq.phone)):
+    if len(re.findall(r'@', rq.phone)) > 0:
         user_in_db = await user_db.get_by_email(rq.phone)
     else:
         user_in_db = await user_db.get_by_email('{}@online.pay'.format(rq.phone))
     print('UUSSS')
+    print(rq.phone)
     print(rq.phone)
     if user_in_db == None:
         if rq.phone[0] == '+':

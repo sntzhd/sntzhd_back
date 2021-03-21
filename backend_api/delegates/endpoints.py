@@ -62,6 +62,7 @@ class DelegateInfoResp(BaseModel):
 @router.get('/delegates', description='Делегаты')
 async def delegates(page: int = 0):
     delegates = await delegate_dao.list(0, 200, {})
+    print(delegates)
     return [DelegateInfoResp(**(await personal_info_dao.list(0, 1, {'user_id': delegate.user_id})).items[0].dict(),
                              value_for=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_for',
                                                                                'delegate_id': delegate.user_id})).count,
