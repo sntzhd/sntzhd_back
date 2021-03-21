@@ -57,10 +57,11 @@ class DelegateInfoResp(BaseModel):
     value_for: int
     value_against: int
     value_abstained: int
+    my_voice: str
 
 
 @router.get('/delegates', description='Делегаты')
-async def delegates(page: int = 0):
+async def delegates(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     delegates = await delegate_dao.list(0, 200, {})
     print(delegates)
     delegate_info_list = []
@@ -78,11 +79,19 @@ async def delegates(page: int = 0):
     for delegate in delegates.items:
         user_info = await personal_info_dao.list(0, 1, {'user_id': delegate.user_id})
         if user_info.count > 0:
+            my_voices = await delegate_vote_dao.list(0, 1, {'user_id': user.id, 'delegate_id': delegate.user_id})
+
+            if my_voices.count > 0:
+                my_voice = my_voices.items[0].vote_value
+            else:
+                my_voice = 'None'
+
             delegate_info_list.append(DelegateInfoResp(**user_info.items[0].dict(),
                              value_for=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_for',
                                                                                'delegate_id': delegate.user_id})).count,
                              value_against=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_against',
                                                                                    'delegate_id': delegate.user_id})).count,
                              value_abstained=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_abstained',
-                                                                                     'delegate_id': delegate.user_id})).count))
+                                                                                     'delegate_id': delegate.user_id})).count,
+                                                       my_voice=my_voice))
     return delegate_info_list

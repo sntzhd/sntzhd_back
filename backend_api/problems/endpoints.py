@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel
-from typing import List, Any
+from typing import List, Any, Optional
 import requests
 
 from backend_api.interfaces import IProblemDAO, IVoteDAO
@@ -41,6 +41,7 @@ class ProblemResp(ProblemDB):
     important: int
     neutral: int
     not_important: int
+    my_voice: Optional[str]
 
 
 @router.get('/problems', description='Проблемы')
@@ -62,7 +63,11 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
             important = 0
             neutral = 0
             not_important = 0
+            my_voice = None
             votes = await vote_dao.list(0, 1, filters)
+            my_voices = await vote_dao.list(0, 1, dict(problem_id=problem.id, user_id=user.id))
+            if my_voices.count > 0:
+                my_voice = my_voices.items[0].importance
             for vote in votes.items:
                 if vote.importance.value == 'important':
                     important += 1
@@ -73,7 +78,8 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
                 if vote.importance.value == 'not_important':
                     not_important += 1
 
-            resp_problems.append(ProblemResp(**problem.dict(), important=important, neutral=neutral, not_important=not_important))
+            resp_problems.append(ProblemResp(**problem.dict(), important=important, neutral=neutral,
+                                             not_important=not_important, my_voice=my_voice))
 
         return ListResponse(items=resp_problems, count=problems.count)
 
