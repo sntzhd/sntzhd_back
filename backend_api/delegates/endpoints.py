@@ -63,12 +63,26 @@ class DelegateInfoResp(BaseModel):
 async def delegates(page: int = 0):
     delegates = await delegate_dao.list(0, 200, {})
     print(delegates)
-    return [DelegateInfoResp(**(await personal_info_dao.list(0, 1, {'user_id': delegate.user_id})).items[0].dict(),
+    delegate_info_list = []
+
+    #return [DelegateInfoResp(**(await personal_info_dao.list(0, 1, {'user_id': delegate.user_id})).items[0].dict(),
+    #                         value_for=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_for',
+    #                                                                           'delegate_id': delegate.user_id})).count,
+    #                         value_against=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_against',
+    #                                                                               'delegate_id': delegate.user_id})).count,
+    #                         value_abstained=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_abstained',
+    #                                                                                 'delegate_id': delegate.user_id})).count)
+    #        for delegate in
+    #        delegates.items]
+
+    for delegate in delegates.items:
+        user_info = await personal_info_dao.list(0, 1, {'user_id': delegate.user_id})
+        if user_info.count > 0:
+            delegate_info_list.append(DelegateInfoResp(**user_info.items[0].dict(),
                              value_for=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_for',
                                                                                'delegate_id': delegate.user_id})).count,
                              value_against=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_against',
                                                                                    'delegate_id': delegate.user_id})).count,
                              value_abstained=(await delegate_vote_dao.list(0, 1000, {'vote_value': 'value_abstained',
-                                                                                     'delegate_id': delegate.user_id})).count)
-            for delegate in
-            delegates.items]
+                                                                                     'delegate_id': delegate.user_id})).count))
+    return delegate_info_list
