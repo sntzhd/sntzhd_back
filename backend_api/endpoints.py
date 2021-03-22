@@ -43,7 +43,7 @@ from backend_api.services.auth_service.endpoints import user_db, UserDB
 from backend_api.utils import create_id
 from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
-from config import secret_config
+from config import secret_config, run_backend_api_config
 from backend_api.parser_utils import check_sum, get_addresses_by_hash
 from backend_api.static_data import street_aliases, url_hauses_in_streets
 from backend_api.static_data import aliases, url_streets
@@ -647,7 +647,11 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
             user_in_db = await user_db.get_by_email('+{}@online.pay'.format(rq.phone))
     print(user_in_db)
     if user_in_db:
-        password = ''.join([choice(string.digits) for _ in range(6)])
+
+        if run_backend_api_config.DEV:
+            password = '123456'
+        else:
+            password = ''.join([choice(string.digits) for _ in range(6)])
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
 
