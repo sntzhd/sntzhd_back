@@ -109,3 +109,27 @@ async def coordinates_by_street_id(street_id: str) -> List[str]:
     for street in r.json().get('sntList')[0].get('streetList'):
         if str(street.get('strID')) == street_id:
             return street.get('geometry').get('coordinates')[0]
+
+@router.get('/problem', description='Проблема')
+async def problem(problem_id: UUID4, user=Depends(fastapi_users.get_current_user)) -> ProblemDB:
+    problem = await problem_dao.get(problem_id)
+    important = 0
+    neutral = 0
+    not_important = 0
+    my_voice = None
+    votes = await vote_dao.list(0, 1, dict(problem_id=problem.id))
+    my_voices = await vote_dao.list(0, 1, dict(problem_id=problem.id, user_id=user.id))
+    if my_voices.count > 0:
+        my_voice = my_voices.items[0].importance
+    for vote in votes.items:
+        if vote.importance.value == 'important':
+            important += 1
+
+        if vote.importance.value == 'neutral':
+            neutral += 1
+
+        if vote.importance.value == 'not_important':
+            not_important += 1
+    return ProblemResp(**problem.dict(), important=important, neutral=neutral,
+                not_important=not_important, my_voice=my_voice)
+
