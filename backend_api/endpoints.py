@@ -314,9 +314,15 @@ async def create_receipt(receipt: ReceiptEntity,
     t1_expense = receipt.t1_current * receipt.t1_paid
     t1_sum = float(current_tariff.get('t0_tariff'))
 
+    delegate_payer_id = None
+    if receipt.neighbour:
+        delegate_personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+        delegate_personal_info: PersonalInfoDB = delegate_personal_infos.items[0]
+        delegate_payer_id = delegate_personal_info.payer_id
+
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
-                                             last_name_only=last_name_only))
+                                             last_name_only=last_name_only, delegate_payer_id=delegate_payer_id))
     if receipt.neighbour:
         await delegat_action_dao.create(
             DelegatActionDB(delegated_id=user.id, payer_id=receipt.neighbour, receipt_id=id_))
@@ -854,9 +860,15 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
         receipt.purpose = 'Оплата членского взноса {}. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'.format(
             rq.year)
 
+    delegate_payer_id = None
+    if rq.neighbour:
+        delegate_personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+        delegate_personal_info: PersonalInfoDB = delegate_personal_infos.items[0]
+        delegate_payer_id = delegate_personal_info.payer_id
+
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
-                                             last_name_only=receipt.last_name))
+                                             last_name_only=receipt.last_name, delegate_payer_id=delegate_payer_id))
 
     if rq.neighbour:
         await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
@@ -924,9 +936,15 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
 
     receipt.purpose = 'Потери 15% Т1 (расход 2000 кВт), Т2 (расход 1000 кВт), согласно Протоколу #9 от 28.03.2015г. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
 
+    delegate_payer_id = None
+    if rq.neighbour:
+        delegate_personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+        delegate_personal_info: PersonalInfoDB = delegate_personal_infos.items[0]
+        delegate_payer_id = delegate_personal_info.payer_id
+
     id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
                                              bill_qr_index=qr_img.json().get('response').get('unique'),
-                                             last_name_only=receipt.last_name))
+                                             last_name_only=receipt.last_name, delegate_payer_id=delegate_payer_id))
 
     if rq.neighbour:
         await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
