@@ -783,6 +783,77 @@ class MembershipReceiptEntity(BaseModel):
     neighbour: Optional[str]
 
 
+@router.post('/add-membership-fee-2021')
+async def add_membership_fee_2001(rq: MembershipReceiptEntity,
+                             user: User = Depends(fastapi_users.get_optional_current_active_user)):
+    alias = get_alias_info('sntzhd')
+
+    if alias == None:
+        raise HTTPException(status_code=500, detail='Не верный alias')
+
+    if rq.neighbour:
+        personal_infos = await personal_info_dao.list(0, 1, {'payer_id': rq.neighbour})
+    else:
+        personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+    pinfo: PersonalInfoDB = personal_infos.items[0]
+
+    payd_sum = 2500
+    payd_sum_qr_string = 250000
+    text = 'Оплата членского взноса 2021'
+    receipt = ReceiptEntity(name=alias.get('name'), bank_name=alias.get('bank_name'), bic=alias.get('bic'),
+                            corresp_acc=alias.get('corresp_acc'), kpp=alias.get('kpp'),
+                            payee_inn=alias.get('payee_inn'),
+                            personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
+                            last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
+                            grand_name=pinfo.grand_name,
+                            payer_address='Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose='{} {}'.format(text, '|Phone={}'.format(pinfo)),
+                            street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
+                            t1_paid=0, service_name='memberfee2021', numsite=pinfo.numsite)
+
+    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+                         k in response_keys.keys()])
+
+    street_id = get_street_id(receipt)
+
+
+    payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}|Л/С='.format(payd_sum_qr_string, rq.year, payer_id)
+    # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
+    receipt.result_sum = payd_sum
+
+    qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
+                           json={"function": "getQRcode",
+                                 "request": {
+                                     "string": 'ST00012|{}'.format(qr_string)
+                                 }})
+
+    img_url = qr_img.json().get('response').get('url')
+
+
+    delegate_payer_id = None
+    if rq.neighbour:
+        delegate_personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
+        delegate_personal_info: PersonalInfoDB = delegate_personal_infos.items[0]
+        delegate_payer_id = delegate_personal_info.payer_id
+
+    id_ = await receipt_dao.create(ReceiptDB(**receipt.dict(), qr_string=qr_string, payer_id=payer_id, img_url=img_url,
+                                             bill_qr_index=qr_img.json().get('response').get('unique'),
+                                             last_name_only=receipt.last_name, delegate_payer_id=delegate_payer_id))
+
+    if rq.neighbour:
+        await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
+
+    receipt = await receipt_dao.get(id_)
+
+    return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
+                                 formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                  months.get(receipt.created_date.month),
+                                                                  receipt.created_date.year),
+                                 formating_sum='{} руб {} коп'.format(2500, '00'),
+                                 alias_info=AliasInfoResp(**alias))
+
+
 @router.post('/add-membership-fee')
 async def add_membership_fee(rq: MembershipReceiptEntity,
                              user: User = Depends(fastapi_users.get_optional_current_active_user)):
