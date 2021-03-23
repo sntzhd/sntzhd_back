@@ -46,6 +46,7 @@ class ReceiptDB(BaseDBModel):
     t1_current: Optional[Decimal]
     t2_paid: Optional[Decimal]
     t2_current: Optional[Decimal]
+    delegate_payer_id: Optional[str]
 
 
 class PersonalInfoDB(BaseDBModel):
