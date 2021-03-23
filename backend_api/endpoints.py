@@ -804,7 +804,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name=pinfo.last_name,
                                 grand_name=pinfo.grand_name,
-                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                payer_address='Л/C {}, {}'.format(pinfo.street_name, pinfo.numsite),
                                 purpose='{} {}'.format(text, '|Phone={}'.format(pinfo)),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
@@ -830,7 +830,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     print(street_id, 'street_id')
 
     payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum_qr_string, rq.year, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}|Л/С='.format(payd_sum_qr_string, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = payd_sum
     if rq.year == '2021h1':
@@ -847,7 +847,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     img_url = qr_img.json().get('response').get('url')
 
     if rq.year == '2021h1':
-        resp_sum = 2500
+        resp_sum = 1250
         receipt.purpose = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
     else:
         resp_sum = 2500
