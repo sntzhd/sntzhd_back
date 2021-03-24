@@ -147,7 +147,7 @@ async def create_receipt(receipt: ReceiptEntity,
     receipt.last_name = pinfo.last_name
     receipt.grand_name = pinfo.grand_name
     receipt.street = pinfo.street_name
-    receipt.payer_address = 'Л/С{}, {}'.format(pinfo.street_name, pinfo.numsite)
+    receipt.payer_address = '{}, {}'.format(pinfo.street_name, pinfo.numsite)
 
     current_tariff = None
 
@@ -284,16 +284,25 @@ async def create_receipt(receipt: ReceiptEntity,
 
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
-        receipt.purpose = '{}\n{}, {}, Л/С{}'.format(receipt.purpose, t2p,
+        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p,
                                                   el_text if receipt.service_name == 'electricity' else lose_text,
                                                   receipt.payer_address)
     else:
-        receipt.purpose = 'Т {} (расход {} кВт), {}, Л/С{}'.format(receipt.t1_current, receipt.rashod_t1,
+        receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
                                                                 el_text if receipt.service_name == 'electricity' else lose_text,
                                                                 receipt.payer_address)
 
-    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
-                         k in response_keys.keys()])
+    qr_string = ''
+
+    for k in receipt.dict().keys():
+        if k in response_keys.keys():
+            if k == 'payer_address':
+                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+            else:
+                qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+
+    # qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+    #                     k in response_keys.keys()])
 
     dt = datetime.datetime.now()
 
@@ -785,7 +794,7 @@ class MembershipReceiptEntity(BaseModel):
 
 @router.post('/add-membership-fee-2021')
 async def add_membership_fee_2001(rq: MembershipReceiptEntity,
-                             user: User = Depends(fastapi_users.get_optional_current_active_user)):
+                                  user: User = Depends(fastapi_users.get_optional_current_active_user)):
     alias = get_alias_info('sntzhd')
 
     if alias == None:
@@ -811,14 +820,21 @@ async def add_membership_fee_2001(rq: MembershipReceiptEntity,
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='memberfee2021', numsite=pinfo.numsite)
 
-    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
-                         k in response_keys.keys()])
+    # qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+    #                     k in response_keys.keys()])
+
+    qr_string = ''
+    for k in receipt.dict().keys():
+        if k in response_keys.keys():
+            if k == 'payer_address':
+                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+            else:
+                qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
     street_id = get_street_id(receipt)
 
-
     payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}|Л/С='.format(payd_sum_qr_string, rq.year, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum_qr_string, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = payd_sum
 
@@ -829,7 +845,6 @@ async def add_membership_fee_2001(rq: MembershipReceiptEntity,
                                  }})
 
     img_url = qr_img.json().get('response').get('url')
-
 
     delegate_payer_id = None
     if rq.neighbour:
@@ -894,20 +909,28 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
-                                payer_address='Л/С{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
                                 purpose='Членский взнос за {} {}'.format(rq.year, '|Phone={}'.format(pinfo.phone)),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
 
-    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
-                         k in response_keys.keys()])
+    # qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+    #                     k in response_keys.keys()])
+
+    qr_string = ''
+    for k in receipt.dict().keys():
+        if k in response_keys.keys():
+            if k == 'payer_address':
+                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+            else:
+                qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
     print(receipt)
     street_id = get_street_id(receipt)
     print(street_id, 'street_id')
 
     payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}|Л/С='.format(payd_sum_qr_string, rq.year, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum_qr_string, rq.year, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = payd_sum
     if rq.year == '2021h1':
@@ -986,8 +1009,16 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
 
-    qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
-                         k in response_keys.keys()])
+    # qr_string = ''.join(['{}={}|'.format(get_work_key(k), receipt.dict().get(k)) for k in receipt.dict().keys() if
+    #                     k in response_keys.keys()])
+
+    qr_string = ''
+    for k in receipt.dict().keys():
+        if k in response_keys.keys():
+            if k == 'payer_address':
+                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+            else:
+                qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
     street_id = get_street_id(receipt)
 
@@ -1487,7 +1518,6 @@ def get_street_name_by_id(street_id: str) -> str:
         if str(street.get('strID')) == street_id:
             return street.get('strName')
     return 'Другие'
-
 
 
 class UserInfo(BaseModel):
