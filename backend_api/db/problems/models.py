@@ -59,3 +59,4 @@ class VoteDB(BaseDBModel):
     problem_id: UUID4
     user_id: UUID4
     importance: Importance
+    vote_date: datetime = Field(default_factory=now)
