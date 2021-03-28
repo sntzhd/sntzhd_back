@@ -26,16 +26,16 @@ class ProblemRq(BaseModel):
     problem_photos: List[Any] = []
     problem_audios: List[Any] = []
     problem_videos: List[Any] = []
-    comment_problem: str
+    comment_problem: Optional[str]
     snt: str
     through: str
     geo_point: List[str]
 
 
 @router.post('/report-problem', description='Сообщить о проблеме')
-async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_user)):
-    await problem_dao.create(ProblemDB(**rq.dict(), status='new', responsible=user.id, user_id=user.id))
-
+async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_user)) -> UUID4:
+    id_ = await problem_dao.create(ProblemDB(**rq.dict(), status='new', responsible=user.id, user_id=user.id))
+    return id_
 
 class ProblemResp(ProblemDB):
     important: int

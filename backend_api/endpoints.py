@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
-from pydantic import UUID4, BaseModel
+from pydantic import UUID4, BaseModel, Field
 import requests
 import datetime
 from fastapi.responses import FileResponse
@@ -1552,8 +1552,11 @@ async def add_me_new_neighbor(rq: NewNeighborRQ, user: User = Depends(fastapi_us
     print(delegats)
 
     personal_infos = await personal_info_dao.list(0, 1, {'phone': rq.phone})
-    pinfo: PersonalInfoDB = personal_infos.items[0]
-    print(pinfo.payer_id)
+    try:
+        pinfo: PersonalInfoDB = personal_infos.items[0]
+        print(pinfo.payer_id)
+    except IndexError:
+        raise HTTPException(status_code=404, detail='Не верный номер телефона')
 
     if delegats.count == 0:
         await delegate_dao.create(DelegateDB(user_id=user.id, payer_ids=[pinfo.payer_id]))
