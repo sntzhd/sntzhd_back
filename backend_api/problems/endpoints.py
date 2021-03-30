@@ -9,6 +9,7 @@ from backend_api.services.auth_service.endpoints import fastapi_users
 from backend_api.utils import instance
 from backend_api.entities import ListResponse
 from config import remote_service_config
+from backend_api.static_data import url_streets
 
 HISTORY_PAGE_SIZE = 20
 
@@ -30,12 +31,14 @@ class ProblemRq(BaseModel):
     snt: str
     through: str
     geo_point: List[str]
+    street: Optional[str]
 
 
 @router.post('/report-problem', description='Сообщить о проблеме')
 async def report_problem(rq: ProblemRq, user=Depends(fastapi_users.get_current_user)) -> UUID4:
     id_ = await problem_dao.create(ProblemDB(**rq.dict(), status='new', responsible=user.id, user_id=user.id))
     return id_
+
 
 class ProblemResp(ProblemDB):
     important: int
@@ -47,6 +50,9 @@ class ProblemResp(ProblemDB):
 @router.get('/problems', description='Проблемы')
 async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
+
+    r_streets = requests.get(url_streets)
+
 
     if user.is_superuser:
         filters = dict()
@@ -65,6 +71,12 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
             not_important = 0
             my_voice = None
             votes = await vote_dao.list(0, 1, filters)
+            print(problem.street)
+
+            for street in r_streets.json().get('sntList')[0].get('streetList'):
+                if problem.street == str(street.get('strID')):
+                    problem.street = street.get('strName')
+
             my_voices = await vote_dao.list(0, 1, dict(problem_id=problem.id, user_id=user.id))
             if my_voices.count > 0:
                 my_voice = my_voices.items[0].importance
@@ -110,6 +122,7 @@ async def coordinates_by_street_id(street_id: str) -> List[str]:
         if str(street.get('strID')) == street_id:
             return street.get('geometry').get('coordinates')[0]
 
+
 @router.get('/problem', description='Проблема')
 async def problem(problem_id: UUID4, user=Depends(fastapi_users.get_current_user)) -> ProblemDB:
     problem = await problem_dao.get(problem_id)
@@ -130,6 +143,13 @@ async def problem(problem_id: UUID4, user=Depends(fastapi_users.get_current_user
 
         if vote.importance.value == 'not_important':
             not_important += 1
-    return ProblemResp(**problem.dict(), important=important, neutral=neutral,
-                not_important=not_important, my_voice=my_voice)
 
+    r_streets = requests.get(url_streets)
+
+    for street in r_streets.json().get('sntList')[0].get('streetList'):
+        if problem.street == str(street.get('strID')):
+            problem.street = street.get('strName')
+
+
+    return ProblemResp(**problem.dict(), important=important, neutral=neutral,
+                       not_important=not_important, my_voice=my_voice)

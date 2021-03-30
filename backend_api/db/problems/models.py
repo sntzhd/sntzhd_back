@@ -48,6 +48,7 @@ class ProblemDB(BaseDBModel):
     through: str
     geo_point: List[str]
     user_id: UUID4
+    street: Optional[str]
 
 
 class Importance(str, Enum):
