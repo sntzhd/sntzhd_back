@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link href="https://getbootstrap.com/docs/5.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=IBM+Plex+Mono:400,500,700|Rubik:400,500&amp;display=swap&amp;subset=cyrillic" type="text/css"/>
+</head>
+<body style="font-family:'IBM Plex Mono',Arial,sans-serif;">
+<div class="container">
+    <div class="row">
+        <div class="col-4">
+            <div class="card">
+              <div class="card-header d-flex justify-content-center">
+                QR-код для оплаты в банкомате
+              </div>
+              <div class="card-body">
+                <img src="{{ qr_img }}" class="img-thumbnail">
+              </div>
+            </div>
+        </div>
+        <div class="col-8">
+            <ul class="list-group">
+              <li class="list-group-item"><strong>Получатель: </strong> {{Name}}</li>
+              <li class="list-group-item"><strong>КПП:</strong>{{KPP}}</li>
+              <li class="list-group-item"><strong>ИНН:</strong> {{PayeeINN}}</li>
+              <li class="list-group-item"><strong>Код ОКАТО: P/сч.:</strong>{{PersonalAcc}}</li>
+              <li class="list-group-item"><strong>в:</strong>{{BankName}}</li>
+              <li class="list-group-item"><strong> БИК:</strong>{{BIC}}<strong>К/сч.:</strong>{{CorrespAcc}}</li>
+              <li class="list-group-item"><strong>Платеж:</strong>{{purpose}} </li>
+              <li class="list-group-item"><strong>Плательщик:</strong> {{lastName}}</li>
+              <li class="list-group-item"><strong>Адрес плательщика:</strong> {{payerAddress}}</li>
+              <li class="list-group-item"><strong>Сумма: </strong>{{sum_rub}} руб {{sum_cop}}  коп.&nbsp;</li>
+              <li class="list-group-item"><strong>Получатель: </strong> {{Name}}</li>
+              <li class="list-group-item">Подпись:________________________</li>
+              <li class="list-group-item">Дата: {{day}} {{month}} {{year}} г.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+<style>
+	img {
+		max-width: 180px;
+        max-height: 180px;
+	}
+</style>
+</body>
+</html>
+
