@@ -392,8 +392,9 @@ async def get_pdf(request: Request, order_id: UUID4):
         sum_cop = '00'
 
     sntzhd = get_alias_info('sntzhd')
+    print(r.img_url)
 
-    t = templates.TemplateResponse("receipt_new.html",
+    t = templates.TemplateResponse("receipt3.html",
                                    {"request": request, 'year': r.created_date.year,
                                     'month': months.get(r.created_date.month),
                                     'day': r.created_date.day, 'sum_rub': sum_rub, 'sum_cop': sum_cop[:2],
