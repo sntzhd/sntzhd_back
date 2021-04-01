@@ -393,7 +393,7 @@ async def get_pdf(request: Request, order_id: UUID4):
 
     sntzhd = get_alias_info('sntzhd')
     print(r.img_url)
-
+    add - losses - prepaid
     t = templates.TemplateResponse("receipt3.html",
                                    {"request": request, 'year': r.created_date.year,
                                     'month': months.get(r.created_date.month),
@@ -498,6 +498,8 @@ async def save_pi(personal_info: PersonalInfoEntity) -> str:
 async def get_receipt(receipt_id: UUID4):
     receipt: ReceiptDB = await receipt_dao.get(receipt_id)
 
+    alias = get_alias_info('sntzhd')
+
     try:
         sum_rub, sum_cop = str(receipt.result_sum).split('.')
     except ValueError:
@@ -505,6 +507,7 @@ async def get_receipt(receipt_id: UUID4):
         sum_cop = '00'
 
     return CreateReceiptResponse(img_url=receipt.img_url, receipt=receipt,
+                                 alias_info=AliasInfoResp(**alias),
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
                                                                   receipt.created_date.year),
@@ -1053,6 +1056,7 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
         await delegat_action_dao.create(DelegatActionDB(delegated_id=user.id, payer_id=rq.neighbour, receipt_id=id_))
     receipt = await receipt_dao.get(id_)
 
+    print(receipt)
     return CreateReceiptResponse(img_url=img_url, receipt=receipt, t1_expense=0, t1_sum=0,
                                  formating_date='{} {} {}'.format(receipt.created_date.day,
                                                                   months.get(receipt.created_date.month),
