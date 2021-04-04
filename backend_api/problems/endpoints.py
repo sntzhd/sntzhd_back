@@ -51,7 +51,7 @@ class ProblemResp(ProblemDB):
 async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
     skip = page * HISTORY_PAGE_SIZE
 
-    r_streets = requests.get(url_streets)
+    r_streets = requests.get(url_streets, verify=False)
 
 
     if user.is_superuser:
@@ -144,7 +144,7 @@ async def problem(problem_id: UUID4, user=Depends(fastapi_users.get_current_user
         if vote.importance.value == 'not_important':
             not_important += 1
 
-    r_streets = requests.get(url_streets)
+    r_streets = requests.get(url_streets, verify=False)
 
     for street in r_streets.json().get('sntList')[0].get('streetList'):
         if problem.street == str(street.get('strID')):

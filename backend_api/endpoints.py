@@ -84,7 +84,7 @@ months = {
     12: 'Декабрь'
 }
 
-r_streets = requests.get(url_streets)
+r_streets = requests.get(url_streets, verify=False)
 raw_street_list = r_streets.json()['sntList'][0]['streetList']
 
 

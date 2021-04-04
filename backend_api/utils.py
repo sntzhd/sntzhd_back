@@ -55,7 +55,7 @@ def get_alias_info(alias_name: str) -> Dict[str, str]:
 def get_street_id(receipt: ReceiptEntity) -> str:
     street_id = None
 
-    r_streets = requests.get(url_streets)
+    r_streets = requests.get(url_streets, verify=False)
 
     for snt in r_streets.json()['sntList']:
         if snt.get('alias') == receipt.alias:
@@ -66,7 +66,7 @@ def get_street_id(receipt: ReceiptEntity) -> str:
 
 
 def get_street_id_by_name(alias: str, stret_name: str):
-    r_streets = requests.get(url_streets)
+    r_streets = requests.get(url_streets, verify=False)
 
     for snt in r_streets.json()['sntList']:
         if snt.get('alias') == alias:
@@ -77,7 +77,7 @@ def get_street_id_by_name(alias: str, stret_name: str):
 
 
 def get_streets() -> str:
-    r_streets = requests.get(url_streets)
+    r_streets = requests.get(url_streets, verify=False)
     return r_streets
 
 
