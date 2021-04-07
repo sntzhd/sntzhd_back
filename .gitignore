@@ -102,3 +102,5 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
+*.sqlite
+*.db

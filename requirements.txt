@@ -9,3 +9,4 @@ WeasyPrint
 python-dateutil
 aiofiles
 jinja2
+peewee

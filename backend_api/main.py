@@ -8,6 +8,7 @@ from backend_api.injections import base
 from backend_api.services.auth_service.endpoints import fastapi_users, jwt_authentication
 from backend_api.utils import on_after_register
 
+
 inject.configure(base)
 
 origins = [
@@ -57,10 +58,12 @@ def configure_routers():
     from backend_api.problems.endpoints import router as router_problems
     from backend_api.delegates.endpoints import router as router_delegates
     from backend_api.admin_panel.endpoints import router as router_admin_panel
+    from backend_api.indication.endpoints import router as router_indication
 
     app.include_router(router, prefix='/receipts', tags=["receipts"])
     app.include_router(router_problems, prefix='/problems', tags=["problems"])
     app.include_router(router_delegates, prefix='/delegates', tags=["delegates"])
     app.include_router(router_admin_panel, prefix='/admin_panel', tags=["admin_panel"])
+    app.include_router(router_indication, prefix='/indication', tags=["indication"])
 
 configure_routers()
