@@ -1,5 +1,5 @@
 from pydantic import Field, UUID4
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from decimal import Decimal
 from datetime import datetime
 
@@ -82,3 +82,23 @@ class DelegatActionDB(BaseDBModel):
     delegated_id: UUID4
     payer_id: str
     receipt_id: UUID4
+
+class RDataDb(BaseDBModel):
+    counterType: int
+    direction: str
+    field_filled: int
+    numsite: str
+    pattern: str
+    payer_hash: str
+    payment_date: str
+    purpose_num_arr: List[Any]
+    raw_purpose_string: str
+    serviceName: str
+    street_name: str
+    t1Current: Decimal
+    t1Expense: Optional[Decimal]
+    t1Paid: Optional[Decimal]
+    t2Current: Decimal
+    t2Expense: Optional[Decimal]
+    t2Paid: Optional[Decimal]
+    Sum: Decimal

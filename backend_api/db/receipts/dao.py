@@ -1,7 +1,7 @@
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IDelegateDAO, IDelegateEventDAO, ICheckingNumberDAO,
-                                    IDelegatActionDAO)
+                                    IDelegatActionDAO, IRDataDAO)
 from backend_api.db.receipts.model import (ReceiptDB, PersonalInfoDB, DelegateDB, DelegateEventDB, CheckingNumberDB,
-                                           DelegatActionDB)
+                                           DelegatActionDB, RDataDb)
 from backend_api.db.motor.dao import MotorGenericDAO
 
 
@@ -32,3 +32,6 @@ class DelegatActionDAO(MotorGenericDAO, IDelegatActionDAO):
     def __init__(self):
         super().__init__('delegat_actions', DelegatActionDB)
 
+class RDataDAO(MotorGenericDAO, IRDataDAO):
+    def __init__(self):
+        super().__init__('rdatas', RDataDb)

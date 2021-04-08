@@ -2,9 +2,9 @@ import inject
 
 from backend_api.interfaces import (IReceiptDAO, IPersonalInfoDAO, IBonusAccDAO, IBonusHistoryDAO, IDelegateDAO,
                                     IDelegateEventDAO, ICheckingNumberDAO, IProblemDAO, IVoteDAO, IDelegatActionDAO,
-                                    IVoteDelegateDAO)
+                                    IVoteDelegateDAO, IRDataDAO)
 from backend_api.db.receipts.dao import (ReceiptDAO, PersonalInfoDAO, DelegateDAO, DelegateEventDAO, CheckingNumberDAO,
-                                         DelegatActionDAO)
+                                         DelegatActionDAO, RDataDAO)
 from backend_api.db.motor.file import IFileDAO, FileDAO
 from backend_api.db.bonuses.dao import BonusHistoryDAO, BonusAccDAO
 from backend_api.db.problems.dao import ProblemDAO, VoteDAO
@@ -23,3 +23,4 @@ def base(binder: inject.Binder):
     binder.bind_to_constructor(IVoteDAO, lambda: VoteDAO())
     binder.bind_to_constructor(IDelegatActionDAO, lambda: DelegatActionDAO())
     binder.bind_to_constructor(IVoteDelegateDAO, lambda: VoteDelegateDAO())
+    binder.bind_to_constructor(IRDataDAO, lambda: RDataDAO())

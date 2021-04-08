@@ -70,3 +70,6 @@ class IDelegatActionDAO(IGenericDAO):
 
 class IVoteDelegateDAO(IGenericDAO):
     pass
+
+class IRDataDAO(IGenericDAO):
+    pass
