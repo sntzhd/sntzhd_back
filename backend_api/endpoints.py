@@ -891,6 +891,9 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
     if rq.year == '2021h1':
+        print('########################')
+        print(pinfo)
+        print('########################')
         payd_sum = 1250
         payd_sum_qr_string = 125000
         text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
@@ -901,7 +904,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
                                 payer_address='Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='{} {}'.format(text, '|Phone={}'.format(pinfo)),
+                                purpose='{} {}'.format(text, '|Phone={}'.format(pinfo.phone)),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
     else:
@@ -924,6 +927,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     qr_string = ''
     for k in receipt.dict().keys():
         if k in response_keys.keys():
+            print(k, receipt.dict().get(k))
             if k == 'payer_address':
                 qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
@@ -942,6 +946,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     else:
         receipt.service_name = 'membership_fee'
 
+    print(qr_string)
     qr_img = requests.post('https://functions.yandexcloud.net/d4edmtn5porf8th89vro',
                            json={"function": "getQRcode",
                                  "request": {
