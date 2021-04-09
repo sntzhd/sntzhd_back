@@ -891,9 +891,6 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
     if rq.year == '2021h1':
-        print('########################')
-        print(pinfo)
-        print('########################')
         payd_sum = 1250
         payd_sum_qr_string = 125000
         text = 'Оплата членского взноса 1 полугодие 2021. На выплату задолженности перед АО НЭСК (оферта auditsnt.ru/nesk)'
@@ -927,15 +924,12 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     qr_string = ''
     for k in receipt.dict().keys():
         if k in response_keys.keys():
-            print(k, receipt.dict().get(k))
             if k == 'payer_address':
                 qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
                 qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
-    print(receipt)
     street_id = get_street_id(receipt)
-    print(street_id, 'street_id')
 
     payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
     qr_string += 'Sum={}|Category=ЖКУ|paymPeriod={}|PersAcc={}'.format(payd_sum_qr_string, rq.year, payer_id)
