@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
-from pydantic import UUID4, BaseModel, Field
-from decimal import Decimal
+from pydantic import UUID4, BaseModel, Field, validator
+from decimal import Decimal, InvalidOperation
 from typing import Optional, List, Any
 import requests
 
@@ -14,33 +14,67 @@ class ReceiptDataToAdmin(BaseModel):
     t1Current: Decimal
     t1Expense: Decimal
     t1Paid: Decimal
-    t2Current: Decimal
-    t2Expense: Decimal
-    t2Paid: Decimal
-    t1Sum: str
-    t2Sum: str
-    proved: bool
+    t2Current: Optional[Decimal]
+    t2Expense: Optional[Decimal]
+    t2Paid: Optional[Decimal]
+    t1Sum: Optional[str]
+    t2Sum: Optional[str]
+    proved: Optional[bool]
     street_name: str
     numsite: str
     serviceName: str
     payment_sum: str
     counterType: str
     purpose_num_arr: List[str]
-    purpose_num_name_arr: List[str]
-    Onec_doc_hash: str
     raw_purpose_string: str
     payer_hash: str
     payment_date: str
+
+    @validator('t2Current', pre=True, always=True)
+    def check_t2_current(cls, v):
+        try:
+            Decimal(v)
+            return v
+        except InvalidOperation:
+            return None
+
+    @validator('t2Expense', pre=True, always=True)
+    def check_t2_expense(cls, v):
+        try:
+            Decimal(v)
+            return v
+        except InvalidOperation:
+            return None
+
+    @validator('t2Paid', pre=True, always=True)
+    def check_t2_paid(cls, v):
+        try:
+            Decimal(v)
+            return v
+        except InvalidOperation:
+            return None
 
 
 router = APIRouter()
 
 
 @router.get('/to-admin')
-async def to_admin() -> ReceiptDataToAdmin:
-    r = requests.get('https://next.json-generator.com/api/json/get/4klwLvrVq')
+async def to_admin() -> List[ReceiptDataToAdmin]:
+    #r = requests.get('https://next.json-generator.com/api/json/get/4klwLvrVq')
+    r = requests.get('https://functions.yandexcloud.net/d4ercvt5b4ad8fo9n23m')
+
+    resp_list = []
     print(r.json()[0])
-    return ReceiptDataToAdmin(**r.json()[0], Onec_doc_hash=r.json()[0].get('1c_doc_hash'))
+    from pydantic.error_wrappers import ValidationError
+    for r_raw in r.json():
+        try:
+            resp_list.append(ReceiptDataToAdmin(**r_raw, payment_sum=r_raw.get('Сумма')))
+        except ValidationError as e:
+            print(e)
+        print(r_raw)
+        print('################################')
+    return resp_list
+    #return ReceiptDataToAdmin(**r.json()[0], Onec_doc_hash=r.json()[0].get('1c_doc_hash'))
 
 
 class RDataRq(BaseModel):
