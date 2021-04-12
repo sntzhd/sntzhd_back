@@ -831,7 +831,7 @@ async def add_membership_fee_2001(rq: MembershipReceiptEntity,
     for k in receipt.dict().keys():
         if k in response_keys.keys():
             if k == 'payer_address':
-                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+                qr_string += '{}=Л/С{}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
                 qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
@@ -925,7 +925,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     for k in receipt.dict().keys():
         if k in response_keys.keys():
             if k == 'payer_address':
-                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+                qr_string += '{}=Л/С{}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
                 qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
@@ -1019,7 +1019,7 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
     for k in receipt.dict().keys():
         if k in response_keys.keys():
             if k == 'payer_address':
-                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+                qr_string += '{}=Л/С{}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
                 qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 

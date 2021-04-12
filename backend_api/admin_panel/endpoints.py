@@ -29,6 +29,7 @@ class ReceiptDataToAdmin(BaseModel):
     raw_purpose_string: str
     payer_hash: str
     payment_date: str
+    proved: bool
 
     @validator('t2Current', pre=True, always=True)
     def check_t2_current(cls, v):
@@ -68,11 +69,15 @@ async def to_admin() -> List[ReceiptDataToAdmin]:
     from pydantic.error_wrappers import ValidationError
     for r_raw in r.json():
         try:
-            resp_list.append(ReceiptDataToAdmin(**r_raw, payment_sum=r_raw.get('Сумма')))
+            r_raw_db = await r_dao.list(0, 1, dict(payer_hash=r_raw.get('payer_hash'), payment_date=r_raw.get('payment_date')))
+            if r_raw_db.count > 0:
+                proved = True
+            else:
+                proved = False
+            resp_list.append(ReceiptDataToAdmin(**r_raw, payment_sum=r_raw.get('Сумма'), proved=proved))
         except ValidationError as e:
-            print(e)
-        print(r_raw)
-        print('################################')
+            pass
+            #print(e)
     return resp_list
     #return ReceiptDataToAdmin(**r.json()[0], Onec_doc_hash=r.json()[0].get('1c_doc_hash'))
 
@@ -92,11 +97,11 @@ class RDataRq(BaseModel):
     t1Current: Decimal
     t1Expense: Optional[Decimal]
     t1Paid: Optional[Decimal]
-    t2Current: Decimal
+    t2Current: Optional[Decimal]
     t2Expense: Optional[Decimal]
     t2Paid: Optional[Decimal]
     Sum: Decimal
 
 @router.post('/to-admin-save')
 async def to_admin_save(rq: RDataRq):
-    await r_dao.create(RDataDb(**rq.dict()))
+    await r_dao.create(RDataDb(**rq.dict(), proved=True))

@@ -98,7 +98,8 @@ class RDataDb(BaseDBModel):
     t1Current: Decimal
     t1Expense: Optional[Decimal]
     t1Paid: Optional[Decimal]
-    t2Current: Decimal
+    t2Current: Optional[Decimal]
     t2Expense: Optional[Decimal]
     t2Paid: Optional[Decimal]
     Sum: Decimal
+    proved: bool
