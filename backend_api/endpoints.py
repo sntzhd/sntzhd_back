@@ -284,11 +284,11 @@ async def create_receipt(receipt: ReceiptEntity,
 
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
-        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p,
+        receipt.purpose = '{}\n{}, {}, Л/С{}'.format(receipt.purpose, t2p,
                                                   el_text if receipt.service_name == 'electricity' else lose_text,
                                                   receipt.payer_address)
     else:
-        receipt.purpose = 'Т {} (расход {} кВт), {}, {}'.format(receipt.t1_current, receipt.rashod_t1,
+        receipt.purpose = 'Т {} (расход {} кВт), {}, Л/С{}'.format(receipt.t1_current, receipt.rashod_t1,
                                                                 el_text if receipt.service_name == 'electricity' else lose_text,
                                                                 receipt.payer_address)
 
@@ -297,7 +297,7 @@ async def create_receipt(receipt: ReceiptEntity,
     for k in receipt.dict().keys():
         if k in response_keys.keys():
             if k == 'payer_address':
-                qr_string += 'Л/С{}={}|'.format(get_work_key(k), receipt.dict().get(k))
+                qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
             else:
                 qr_string += '{}={}|'.format(get_work_key(k), receipt.dict().get(k))
 
