@@ -1674,3 +1674,8 @@ async def parser_1c(select_street: StreetNames = None, paymPeriod: str = None, n
                          sum_streets_result=sum_streets_result, membership_fee_sum=membership_fee_sum,
                          losses_sum=losses_sum, undefound_clients_count=len(undefined_client_list),
                          expense_rows_count=expense_rows_count, expense_list=expense_list, expense_sum=expense_sum)
+
+
+@router.get('/get-receipts-by-payer-id', )
+async def get_receipts_by_payer_id(payer_id: str) -> List[ReceiptDB]:
+    return await receipt_dao.list(0, 1000, dict(payer_id=payer_id))
