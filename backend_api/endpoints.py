@@ -285,12 +285,12 @@ async def create_receipt(receipt: ReceiptEntity,
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
         receipt.purpose = '{}\n{}, {}, Л/С {}'.format(receipt.purpose, t2p,
-                                                  el_text if receipt.service_name == 'electricity' else lose_text,
-                                                  receipt.payer_address)
+                                                      el_text if receipt.service_name == 'electricity' else lose_text,
+                                                      receipt.payer_address)
     else:
         receipt.purpose = 'Т {} (расход {} кВт), {}, Л/С {}'.format(receipt.t1_current, receipt.rashod_t1,
-                                                                el_text if receipt.service_name == 'electricity' else lose_text,
-                                                                receipt.payer_address)
+                                                                    el_text if receipt.service_name == 'electricity' else lose_text,
+                                                                    receipt.payer_address)
 
     qr_string = ''
 
@@ -1008,7 +1008,10 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                             last_name=pinfo.last_name,
                             grand_name=pinfo.grand_name,
                             payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose='Потери 15% на 3000 кВт {} Л/С {}'.format('|Phone={}'.format(pinfo.phone), '{} {}'.format(pinfo.street_name, pinfo.numsite)),
+                            purpose='Потери 15% на 3000 кВт, Л/С {}{}'.format(
+                                '{}, {}'.format(pinfo.street_name,
+                                                pinfo.numsite),
+                                '|Phone={}'.format(pinfo.phone),),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
 
