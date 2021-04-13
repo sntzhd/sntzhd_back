@@ -819,8 +819,8 @@ async def add_membership_fee_2001(rq: MembershipReceiptEntity,
                             personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                             last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                             grand_name=pinfo.grand_name,
-                            payer_address='Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose='{}'.format(text),
+                            payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose='{} Л/C {}, {}'.format(text, pinfo.street_name, pinfo.numsite),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='memberfee2021', numsite=pinfo.numsite)
 
@@ -900,8 +900,8 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
-                                payer_address='Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='{} {}'.format(text, '|Phone={}'.format(pinfo.phone)),
+                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                purpose='{} {} Л/C {}, {}'.format(text, '|Phone={}'.format(pinfo.phone), pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
     else:
@@ -913,8 +913,8 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
-                                payer_address='Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='Членский взнос за {} {}'.format(rq.year, '|Phone={}'.format(pinfo.phone)),
+                                payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                purpose='Членский взнос за {} {} Л/C {}, {}'.format(rq.year, '|Phone={}'.format(pinfo.phone), pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
 
