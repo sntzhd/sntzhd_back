@@ -674,8 +674,6 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
         user_in_db.hashed_password = get_password_hash(password)
         await user_db.update(user_in_db)
 
-        print('code', password)
-        print(rq.phone)
         if secret_config.SEND_SMS:
             send_sms_status = send_sms('7{}'.format(rq.phone.split('@')[0]), password)
 
