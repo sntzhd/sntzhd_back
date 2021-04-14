@@ -36,14 +36,13 @@ from backend_api.entities import (ListResponse, ReceiptEntity, PersonalInfoEntit
 from backend_api.db.receipts.model import (ReceiptDB, PersonalInfoDB, DelegateEventDB, DelegateDB, CheckingNumberDB,
                                            DelegatActionDB)
 from backend_api.db.bonuses.models import BonusAccDB, BonusHistoryDB
-from config import remote_service_config
 from backend_api.db.motor.file import IFileDAO
 from backend_api.db.exceptions import NotFoundError
 from backend_api.services.auth_service.endpoints import user_db, UserDB
 from backend_api.utils import create_id
 from backend_api.smssend import send_sms
 from backend_api.services.auth_service.endpoints import fastapi_users
-from config import secret_config, run_backend_api_config
+from config import secret_config, run_backend_api_config, yandex_functions_config, remote_service_config
 from backend_api.parser_utils import check_sum, get_addresses_by_hash
 from backend_api.static_data import street_aliases, url_hauses_in_streets
 from backend_api.static_data import aliases, url_streets
@@ -675,9 +674,11 @@ async def send_validation_sms(rq: SendValidationSmsRq) -> str:
         await user_db.update(user_in_db)
 
         if secret_config.SEND_SMS:
-            send_sms_status = send_sms('7{}'.format(rq.phone.split('@')[0]), password)
+            r = requests.post(yandex_functions_config.send_sms,
+                              json={'phone': '7{}'.format(rq.phone.split('@')[0]), 'msg': password})
+            # send_sms_status = send_sms('7{}'.format(rq.phone.split('@')[0]), password)
 
-            if send_sms_status == False:
+            if r.text != 'true':
                 raise HTTPException(status_code=500, detail='Ошибка сервиса, код авторизации: {}'.format(password))
         else:
             print('NO SEND')
@@ -899,7 +900,8 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
                                 payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='{} {} Л/C {}, {}'.format(text, '|Phone={}'.format(pinfo.phone), pinfo.street_name, pinfo.numsite),
+                                purpose='{} {} Л/C {}, {}'.format(text, '|Phone={}'.format(pinfo.phone),
+                                                                  pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
     else:
@@ -912,7 +914,9 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
                                 payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='Членский взнос за {} {} Л/C {}, {}'.format(rq.year, '|Phone={}'.format(pinfo.phone), pinfo.street_name, pinfo.numsite),
+                                purpose='Членский взнос за {} {} Л/C {}, {}'.format(rq.year,
+                                                                                    '|Phone={}'.format(pinfo.phone),
+                                                                                    pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='membership_fee', numsite=pinfo.numsite)
 
@@ -1009,7 +1013,7 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                             purpose='Потери 15% на 3000 кВт, Л/С {}{}'.format(
                                 '{}, {}'.format(pinfo.street_name,
                                                 pinfo.numsite),
-                                '|Phone={}'.format(pinfo.phone),),
+                                '|Phone={}'.format(pinfo.phone), ),
                             street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                             t1_paid=0, service_name='losses.prepaid', numsite=pinfo.numsite)
 
