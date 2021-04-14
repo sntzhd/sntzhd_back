@@ -1027,7 +1027,7 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
     street_id = get_street_id(receipt)
 
     payer_id = pinfo.payer_id  # '{}-{}-{}'.format(alias.get('payee_inn')[4:8], street_id, receipt.numsite)
-    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(2139, payer_id)
+    qr_string += 'Sum={}|Category=ЖКУ|PersAcc={}'.format(213900, payer_id)
     # payer_id = '{}{}{}'.format(receipt.payee_inn[5:8], 'strID', receipt.numsite)
     receipt.result_sum = 2139
     receipt.service_name = 'losses.prepaid'
