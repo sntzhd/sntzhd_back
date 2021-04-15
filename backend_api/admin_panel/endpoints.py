@@ -60,7 +60,7 @@ router = APIRouter()
 
 
 @router.get('/to-admin')
-async def to_admin() -> List[ReceiptDataToAdmin]:
+async def to_admin(service_name: str = None) -> List[ReceiptDataToAdmin]:
     #r = requests.get('https://next.json-generator.com/api/json/get/4klwLvrVq')
     r = requests.get('https://functions.yandexcloud.net/d4ercvt5b4ad8fo9n23m')
 
@@ -68,6 +68,9 @@ async def to_admin() -> List[ReceiptDataToAdmin]:
     print(r.json()[0])
     from pydantic.error_wrappers import ValidationError
     for r_raw in r.json():
+        if service_name and r_raw.get('serviceName') != service_name:
+            continue
+
         try:
             r_raw_db = await r_dao.list(0, 1, dict(payer_hash=r_raw.get('payer_hash'), payment_date=r_raw.get('payment_date')))
             if r_raw_db.count > 0:
