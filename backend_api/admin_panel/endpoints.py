@@ -1,12 +1,14 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel, Field, validator
 from decimal import Decimal, InvalidOperation
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 import requests
+from datetime import datetime
 
 from backend_api.interfaces import IRDataDAO
 from backend_api.utils import instance
 from backend_api.db.receipts.model import RDataDb
+from config import remote_service_config
 
 r_dao: IRDataDAO = instance(IRDataDAO)
 
@@ -60,16 +62,28 @@ router = APIRouter()
 
 
 @router.get('/to-admin')
-async def to_admin(service_name: str = None) -> List[ReceiptDataToAdmin]:
+async def to_admin(service_name: str = None, street: str = None, date_from: str = None, date_to: str = None) -> List[ReceiptDataToAdmin]:
     #r = requests.get('https://next.json-generator.com/api/json/get/4klwLvrVq')
     r = requests.get('https://functions.yandexcloud.net/d4ercvt5b4ad8fo9n23m')
 
     resp_list = []
-    print(r.json()[0])
+    print(service_name, street, date_from, date_to)
     from pydantic.error_wrappers import ValidationError
     for r_raw in r.json():
+        print(service_name, 'service_name')
         if service_name and r_raw.get('serviceName') != service_name:
             continue
+        elif street and  r_raw.get('street_name').lower() != street.lower():
+            continue
+        elif date_from and date_to:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+
+            if date_from_obj < date_to_obj:
+                payment_date = datetime.strptime(r_raw.get('payment_date'), '%d.%m.%Y')
+                if payment_date < date_from_obj or payment_date > date_to_obj:
+                    print(date_from_obj, date_to_obj, payment_date)
+                    continue
 
         try:
             r_raw_db = await r_dao.list(0, 1, dict(payer_hash=r_raw.get('payer_hash'), payment_date=r_raw.get('payment_date')))
@@ -108,3 +122,12 @@ class RDataRq(BaseModel):
 @router.post('/to-admin-save')
 async def to_admin_save(rq: RDataRq):
     await r_dao.create(RDataDb(**rq.dict(), proved=True))
+
+class StreetShort(BaseModel):
+    strID: int
+    strName: str
+
+@router.get('/get-streets')
+async def get_streets() -> List[StreetShort]:
+    r = requests.get(remote_service_config.street_list_url)
+    return [StreetShort(**street) for street in r.json().get('sntList')[0].get('streetList')]
