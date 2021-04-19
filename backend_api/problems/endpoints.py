@@ -89,6 +89,10 @@ async def problems(page: int = 0, user=Depends(fastapi_users.get_current_user)):
 
                 if vote.importance.value == 'not_important':
                     not_important += 1
+            if len(problem.problem_photos) > 0:
+                img_url = 'https://storage.yandexcloud.net/functions-yandex/image2bucket/{}.jpg'
+                problem.problem_photos = [img_url.format(p) for p in problem.problem_photos]
+                #print(problem.problem_photos)
 
             resp_problems.append(ProblemResp(**problem.dict(), important=important, neutral=neutral,
                                              not_important=not_important, my_voice=my_voice))
