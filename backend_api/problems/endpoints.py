@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from pydantic import UUID4, BaseModel
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict
 import requests
 
 from backend_api.interfaces import IProblemDAO, IVoteDAO
@@ -105,6 +105,12 @@ class VoteRq(BaseModel):
     importance: Importance
 
 
+class VoteResp(BaseModel):
+    Reply: str
+    function: str
+    response: Dict[str, str]
+
+
 @router.post('/to-vote', description='Проголосовать')
 async def to_vote(rq: VoteRq, user=Depends(fastapi_users.get_current_user)):
     filters = dict(user_id=user.id, problem_id=rq.problem_id)
@@ -117,6 +123,9 @@ async def to_vote(rq: VoteRq, user=Depends(fastapi_users.get_current_user)):
         vote = votes.items[0]
         vote.importance = rq.importance
         await vote_dao.update(vote)
+
+    return VoteResp(Reply='Ok', function='voteToProblem', response=dict(problem_id=str(rq.problem_id), importance=rq.importance))
+
 
 
 @router.get('/coordinates-by-street-id', )
