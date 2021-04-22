@@ -9,8 +9,16 @@ from backend_api.interfaces import IRDataDAO
 from backend_api.utils import instance
 from backend_api.db.receipts.model import RDataDb
 from config import remote_service_config
+from backend_api.services.auth_service.endpoints import fastapi_users
 
 r_dao: IRDataDAO = instance(IRDataDAO)
+
+class User(BaseModel):
+    id: UUID4
+    username: str
+    email: str
+    is_active: bool
+    is_superuser: bool
 
 class ReceiptDataToAdmin(BaseModel):
     t1Current: Decimal
@@ -62,9 +70,13 @@ router = APIRouter()
 
 
 @router.get('/to-admin')
-async def to_admin(service_name: str = None, street: str = None, date_from: str = None, date_to: str = None) -> List[ReceiptDataToAdmin]:
+async def to_admin(service_name: str = None, street: str = None, date_from: str = None, date_to: str = None,
+                   user: User = Depends(fastapi_users.get_optional_current_active_user)) -> List[ReceiptDataToAdmin]:
     #r = requests.get('https://next.json-generator.com/api/json/get/4klwLvrVq')
     r = requests.get('https://functions.yandexcloud.net/d4ercvt5b4ad8fo9n23m')
+
+    if user.is_superuser is False:
+        raise HTTPException(status_code=404, detail='Доступ запрещен')
 
     resp_list = []
     print(service_name, street, date_from, date_to)
@@ -120,7 +132,9 @@ class RDataRq(BaseModel):
     Sum: Decimal
 
 @router.post('/to-admin-save')
-async def to_admin_save(rq: RDataRq):
+async def to_admin_save(rq: RDataRq, user: User = Depends(fastapi_users.get_optional_current_active_user)):
+    if user.is_superuser is False:
+        raise HTTPException(status_code=404, detail='Доступ запрещен')
     await r_dao.create(RDataDb(**rq.dict(), proved=True))
 
 class StreetShort(BaseModel):
