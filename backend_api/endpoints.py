@@ -104,6 +104,9 @@ def get_work_key(k):
         return wk
     return k
 
+def make_purpose_to_receipt(receipt: ReceiptEntity):
+    receipt
+
 
 class CreateReceiptResponse(BaseModel):
     img_url: str
@@ -146,7 +149,7 @@ async def create_receipt(receipt: ReceiptEntity,
     receipt.last_name = pinfo.last_name
     receipt.grand_name = pinfo.grand_name
     receipt.street = pinfo.street_name
-    receipt.payer_address = '{}, {}'.format(pinfo.street_name, pinfo.numsite)
+    receipt.payer_address = 'Л/С {}, {}'.format(pinfo.street_name, pinfo.numsite)
 
     current_tariff = None
 
@@ -283,7 +286,7 @@ async def create_receipt(receipt: ReceiptEntity,
 
         t2p = 'Т2 {} (расход {} кВт)'.format(receipt.t2_current, receipt.rashod_t2,
                                              )
-        receipt.purpose = '{}\n{}, {}, Л/С {}'.format(receipt.purpose, t2p,
+        receipt.purpose = '{}\n{}, {}, {}'.format(receipt.purpose, t2p,
                                                       el_text if receipt.service_name == 'electricity' else lose_text,
                                                       receipt.payer_address)
     else:
@@ -899,8 +902,8 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
-                                payer_address=' Л/C{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='{} {} Л/C {}, {}'.format(text, '|Phone={}'.format(pinfo.phone),
+                                payer_address=' Л/C {}, {}'.format(pinfo.street_name, pinfo.numsite),
+                                purpose='{} {} {}, {}'.format(text, '|Phone={}'.format(pinfo.phone),
                                                                   pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
                                 t1_paid=0, service_name='memberfee2021h1', numsite=pinfo.numsite)
@@ -914,7 +917,7 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
                                 last_name='{} {} {}'.format(pinfo.last_name, pinfo.first_name, pinfo.grand_name),
                                 grand_name=pinfo.grand_name,
                                 payer_address='Л/C {}, {}'.format(pinfo.street_name, pinfo.numsite),
-                                purpose='Членский взнос за {} {} Л/C {}, {}'.format(rq.year,
+                                purpose='Членский взнос за {} {} {}, {}'.format(rq.year,
                                                                                     '|Phone={}'.format(pinfo.phone),
                                                                                     pinfo.street_name, pinfo.numsite),
                                 street=pinfo.street_name, counter_type=0, rashod_t1=0, rashod_t2=0, t1_current=0,
@@ -1009,8 +1012,8 @@ async def add_losses_prepaid(rq: AddLossesPrepaidRQ,
                             personal_acc=alias.get('personal_acc'), first_name=pinfo.first_name,
                             last_name=pinfo.last_name,
                             grand_name=pinfo.grand_name,
-                            payer_address='{}, {}'.format(pinfo.street_name, pinfo.numsite),
-                            purpose='Потери 15% на 3000 кВт, Л/С {}{}'.format(
+                            payer_address='Л/С {}, {}'.format(pinfo.street_name, pinfo.numsite),
+                            purpose='Потери 15% на 3000 кВт, {}{}'.format(
                                 '{}, {}'.format(pinfo.street_name,
                                                 pinfo.numsite),
                                 '|Phone={}'.format(pinfo.phone), ),
