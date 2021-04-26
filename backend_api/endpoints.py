@@ -812,6 +812,19 @@ async def add_membership_fee_2001(rq: MembershipReceiptEntity,
         personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
 
+
+    receipt_in_db = await receipt_dao.list(0, 1, dict(payer_id=pinfo.payer_id))
+
+    if receipt_in_db.count > 0:
+        receipt: ReceiptDB = receipt_in_db.items[0]
+        return CreateReceiptResponse(img_url=receipt.img_url, receipt=receipt, t1_expense=0, t1_sum=0,
+                                     formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                      months.get(receipt.created_date.month),
+                                                                      receipt.created_date.year),
+                                     formating_sum='{} руб {} коп'.format(2500, '00'),
+                                     alias_info=AliasInfoResp(**alias))
+
+
     payd_sum = 2500
     payd_sum_qr_string = 250000
     text = 'Оплата членского взноса 2021'
@@ -891,6 +904,17 @@ async def add_membership_fee(rq: MembershipReceiptEntity,
     else:
         personal_infos = await personal_info_dao.list(0, 1, {'user_id': user.id})
     pinfo: PersonalInfoDB = personal_infos.items[0]
+
+    receipt_in_db = await receipt_dao.list(0, 1, dict(payer_id=pinfo.payer_id))
+
+    if receipt_in_db.count > 0:
+        receipt: ReceiptDB = receipt_in_db.items[0]
+        return CreateReceiptResponse(img_url=receipt.img_url, receipt=receipt, t1_expense=0, t1_sum=0,
+                                     formating_date='{} {} {}'.format(receipt.created_date.day,
+                                                                      months.get(receipt.created_date.month),
+                                                                      receipt.created_date.year),
+                                     formating_sum='{} руб {} коп'.format(2500, '00'),
+                                     alias_info=AliasInfoResp(**alias))
 
     if rq.year == '2021h1':
         payd_sum = 1250
