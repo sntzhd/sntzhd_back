@@ -29,7 +29,7 @@ class RunConfigBackendAPI(BaseSettings):
 class RemoteServiceConfig(BaseSettings):
     default_data_url = 'https://storage.yandexcloud.net/sntzhd.ru/jsondata/streetListUrl/N1kZKVgpK'
     street_list_url = 'https://storage.yandexcloud.net/sntzhd.ru/jsondata/defaultDataUrl/EymrGfgTK'
-    address_by_hash = 'https://next.json-generator.com/api/json/get/NypUu-4X9'
+    address_by_hash = 'https://storage.yandexcloud.net/www.auditsnt.ru/jsondata/address_by_hash/NypUu-4X9'
 
 
 class YandexFunctionsConfig(BaseSettings):
